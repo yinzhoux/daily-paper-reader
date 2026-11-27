@@ -1,0 +1,585 @@
+{
+  "date": "20261029-20261127",
+  "date_label": "2026-10-29 ~ 2026-11-27",
+  "generated_at": "2026-11-27 07:42:25 UTC",
+  "recommend_exists": true,
+  "run_count": 1,
+  "papers": [
+    {
+      "paper_id": "2611.29749v1",
+      "route": "20261029-20261127/2611.29749v1-carlhoi-counterfactual-predictive-imagination-for-generalizable-multi-humanoid-object-interaction-under-constrained-environments",
+      "title": "CarlHOI: Counterfactual Predictive Imagination for Generalizable Multi-Humanoid Object Interaction under Constrained Environments",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 10.0,
+      "evidence": "面向多人形物体交互的关系潜世界模型与强化学习控制",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.02871v1",
+      "route": "20261029-20261127/2611.02871v1-regate-recurrent-gated-visual-fusion-for-reactive-humanoid-object-interaction",
+      "title": "ReGATE: Recurrent Gated Visual Fusion for Reactive Humanoid-Object Interaction",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "面向物体抓取、搬运与释放的人形全身控制",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.05113v1",
+      "route": "20261029-20261127/2611.05113v1-hlo-amp-hierarchical-loco-manipulation-from-object-aware-motion-priors",
+      "title": "HLO-AMP: Hierarchical Loco-Manipulation from Object-Aware Motion Priors",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "人形全身移动操作与物体感知运动先验",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.06523v1",
+      "route": "20261029-20261127/2611.06523v1-h2marl-hierarchical-heterogeneous-multi-agent-reinforcement-learning-for-humanoid-robot-control",
+      "title": "H^2MARL: Hierarchical Heterogeneous Multi-agent Reinforcement Learning for Humanoid Robot Control",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "面向人形全身控制的分层异构多智能体强化学习",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.09266v1",
+      "route": "20261029-20261127/2611.09266v1-sugarv2-learning-diverse-visual-humanoid-loco-manipulation-skills-from-synthesized-interaction-references",
+      "title": "SUGARv2: Learning Diverse Visual Humanoid Loco-Manipulation Skills from Synthesized Interaction References",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "通过参考模仿学习视觉人形移动操作技能",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.11554v1",
+      "route": "20261029-20261127/2611.11554v1-kimodo-policy-learning-kinematic-action-models-for-humanoid-loco-manipulation",
+      "title": "Kimodo-Policy: Learning Kinematic Action Models for Humanoid Loco-Manipulation",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "基于运动学动作模型的人形机器人全身移动操作",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.12732v1",
+      "route": "20261029-20261127/2611.12732v1-sigma-lewm-learning-world-models-via-s-information-for-robot-control",
+      "title": "$\\Sigma$-LeWM: Learning World Models via S-Information for Robot Control",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "带额外潜在动力学损失的联合嵌入预测架构世界模型用于机器人控制",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.19616v1",
+      "route": "20261029-20261127/2611.19616v1-towards-probabilistically-safe-reinforcement-learning-theory-and-deployment-on-humanoid-and-aerial-robots",
+      "title": "Towards Probabilistically Safe Reinforcement Learning: Theory and Deployment on Humanoid and Aerial Robots",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "在 humanoid 与飞行机器人上验证的安全强化学习理论",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.24062v1",
+      "route": "20261029-20261127/2611.24062v1-jepa-dots-dual-latent-world-model-for-language-guided-robot-control",
+      "title": "JEPA Dots: Dual-Latent World Model for Language-Guided Robot Control",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "面向语言引导机器人控制的JEPA式双隐世界模型",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.27645v1",
+      "route": "20261029-20261127/2611.27645v1-efficient-vla-reinforcement-learning-via-subchunk-rollouts-in-latent-world-models",
+      "title": "Efficient VLA Reinforcement Learning via Subchunk Rollouts in Latent World Models",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "基于潜在世界模型的模型强化学习提升VLA效率",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.30516v1",
+      "route": "20261029-20261127/2611.30516v1-jepa-icl-progress-aligned-latent-plans-for-in-context-robotic-manipulation",
+      "title": "JEPA-ICL: Progress-Aligned Latent Plans for In-Context Robotic Manipulation",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "在JEPA特征空间做预测规划并结合示范学习操作策略",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2610.40401v1",
+      "route": "20261029-20261127/2610.40401v1-continuous-action-world-models-learning-cross-embodiment-spatiotemporal-dynamics-priors",
+      "title": "Continuous-Action World Models: Learning Cross-Embodiment Spatiotemporal Dynamics Priors",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "具备结构化潜函数空间、支持机器人动作生成的世界模型",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2610.41336v2",
+      "route": "20261029-20261127/2610.41336v2-handmimicx-learning-human-like-dexterous-manipulation-via-an-object-centric-policy-from-egocentric-videos",
+      "title": "HandMimicX: Learning Human-Like Dexterous Manipulation via an Object-Centric Policy from Egocentric Videos",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "以物体运动为强化学习目标的物体中心策略学习",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2610.42146v1",
+      "route": "20261029-20261127/2610.42146v1-hierarchical-world-models-with-implicit-dynamics",
+      "title": "Hierarchical World Models with Implicit Dynamics",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "支持具身智能体规划的分层世界模型",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.01600v1",
+      "route": "20261029-20261127/2611.01600v1-scout-planning-under-occlusion-via-object-centric-world-model-rollouts",
+      "title": "SCOUT: Planning under Occlusion via Object-Centric World Model Rollouts",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "基于物体中心世界模型推演的遮挡下规划",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.02930v1",
+      "route": "20261029-20261127/2611.02930v1-pointpilot-unified-robotic-manipulation-via-object-centric-3d-point-flow-prediction",
+      "title": "PointPilot: Unified Robotic Manipulation via Object-Centric 3D Point Flow Prediction",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "以物体为中心的三维点流表示提升操作策略泛化",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.05979v1",
+      "route": "20261029-20261127/2611.05979v1-learning-object-centric-motion-priors-from-human-for-robotic-dexterous-manipulation",
+      "title": "Learning Object-Centric Motion Priors from Human for Robotic Dexterous Manipulation",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "利用人-物交互数据学习物体中心运动先验用于灵巧操作",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.10410v1",
+      "route": "20261029-20261127/2611.10410v1-simduoreal-object-centric-bimanual-policy-for-emergent-dexterity",
+      "title": "SimDuoReal: Object-Centric Bimanual Policy for Emergent Dexterity",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "面向双臂操作的对象中心强化学习策略与DAgger蒸馏",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.11854v2",
+      "route": "20261029-20261127/2611.11854v2-decoupled-asynchronous-system-for-humanoids-dash-latency-agnostic-scaling-of-vision-language-action-models-for-humanoid-manipulation",
+      "title": "Decoupled Asynchronous System for Humanoids (DASH): Latency-Agnostic Scaling of Vision-Language-Action Models for Humanoid Manipulation",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "面向人形灵巧操作的异步视觉语言动作系统",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.13685v1",
+      "route": "20261029-20261127/2611.13685v1-ego-guidance-enhancing-robot-policy-learning-with-action-free-human-egocentric-videos",
+      "title": "Ego Guidance: Enhancing Robot Policy Learning with Action-Free Human Egocentric Videos",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "利用第一视角视频进行机器人策略表示学习",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.13732v1",
+      "route": "20261029-20261127/2611.13732v1-ciallo-learning-shared-intent-representations-for-cross-embodiment-manipulation",
+      "title": "CIALLO: Learning Shared Intent Representations for Cross-Embodiment Manipulation",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "面向跨本体操作的共享意图表征学习",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.22713v1",
+      "route": "20261029-20261127/2611.22713v1-body-schema-policy-body-as-the-vision-action-interface-for-efficient-robot-loco-manipulation",
+      "title": "Body Schema Policy: Body as the Vision-Action Interface for Efficient Robot Loco-Manipulation",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "用于视觉-动作控制的潜在身体图式结构化表示",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.24074v1",
+      "route": "20261029-20261127/2611.24074v1-semphys-semantic-physical-co-learning-for-humanoid-motion-generation-via-differentiable-world-models",
+      "title": "SemPhys: Semantic-Physical Co-Learning for Humanoid Motion Generation via Differentiable World Models",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "用可微世界模型与语义反馈生成人形全身运动",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.24115v1",
+      "route": "20261029-20261127/2611.24115v1-embodied-graph-a-relational-world-model-for-long-horizon-tasks",
+      "title": "Embodied Graph: A Relational World Model for Long-Horizon Tasks",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "基于稀疏状态抽象的关系世界模型用于规划",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.24938v2",
+      "route": "20261029-20261127/2611.24938v2-phoenix-learning-scene-structure-representations-for-generalizable-world-action-models",
+      "title": "Phoenix: Learning Scene Structure Representations for Generalizable World-Action Models",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "为世界-动作模型学习结构化场景表征并联合预测潜变量与动作",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.25778v1",
+      "route": "20261029-20261127/2611.25778v1-echo-in-context-behavior-foundation-model-for-humanoid-whole-body-control",
+      "title": "ECHO: In-Context Behavior foundation model for Humanoid Whole-Body Control",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "面向人形全身强化学习控制的上下文行为基础模型",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.27149v1",
+      "route": "20261029-20261127/2611.27149v1-where-structure-enters-a-world-model-from-predictive-fit-to-physical-rollout",
+      "title": "Where Structure Enters a World Model: From Predictive Fit to Physical Rollout",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "研究物理结构如何增强包括JEPA式在内的预测世界模型",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.30449v1",
+      "route": "20261029-20261127/2611.30449v1-champ-coordinated-humanoid-loco-manipulation-with-whole-body-motion-priors",
+      "title": "CHAMP: Coordinated Humanoid Loco-Manipulation with Whole-Body Motion Priors",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "基于共享运动先验的人形全身移动操作与物体交互",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.30659v1",
+      "route": "20261029-20261127/2611.30659v1-actfield-learning-action-effects-as-continuous-time-latent-dynamics",
+      "title": "ActField: Learning Action Effects as Continuous-Time Latent Dynamics",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "将动作效果学习为潜动力学的连续时间JEPA世界模型",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.30963v1",
+      "route": "20261029-20261127/2611.30963v1-foresight-forcing-learning-spatial-foresight-for-robotic-manipulation",
+      "title": "Foresight Forcing: Learning Spatial Foresight for Robotic Manipulation",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "为机器人操作策略学习空间转移表示",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.31901v1",
+      "route": "20261029-20261127/2611.31901v1-prewam-exploring-the-design-of-latent-future-prediction-for-world-action-modeling",
+      "title": "PreWAM: Exploring the Design of Latent Future Prediction for World-Action Modeling",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "面向世界-动作模型的结构化潜在未来预测",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.32053v2",
+      "route": "20261029-20261127/2611.32053v2-effectwam-learning-action-grounded-effects-for-robot-manipulation",
+      "title": "EffectWAM: Learning Action-Grounded Effects for Robot Manipulation",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "将视觉预测与可执行机器人控制结合的世界动作模型",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.32654v1",
+      "route": "20261029-20261127/2611.32654v1-dexwac-a-unified-world-actor-critic-model-for-dexterous-robot-manipulation",
+      "title": "DexWAC: A Unified World-Actor-Critic Model for Dexterous Robot Manipulation",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "统一的动作条件世界模型与演员-评论家",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.32776v2",
+      "route": "20261029-20261127/2611.32776v2-learning-world-models-through-contrastive-identification-of-actions",
+      "title": "Learning World Models through Contrastive Identification of Actions",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "以对比式动作辨识学习潜在世界模型并支持目标导向规划",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.33799v1",
+      "route": "20261029-20261127/2611.33799v1-dynamic-forcing-learning-action-grounded-sparse-dynamic-representations-with-dense-future-guidance-for-world-action-models",
+      "title": "Dynamic Forcing: Learning Action-Grounded Sparse Dynamic Representations with Dense Future Guidance for World Action Models",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "世界动作模型中稠密未来引导的稀疏动态表示",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    },
+    {
+      "paper_id": "2611.34884v1",
+      "route": "20261029-20261127/2611.34884v1-finedex-bridging-fine-grained-human-object-interaction-generation-to-dexterous-humanoid-manipulation",
+      "title": "FineDex: Bridging Fine-Grained Human-Object Interaction Generation to Dexterous Humanoid Manipulation",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "以人-物交互先验驱动机器人灵巧人形操作",
+      "first_seen_at": "2026-11-27 07:42:25 UTC",
+      "updated_at": "2026-11-27 07:42:25 UTC"
+    }
+  ]
+}

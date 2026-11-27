@@ -1,0 +1,1874 @@
+EffectWAM: Learning Action-Grounded Effects for Robot
+Manipulation
+Yuan Zhang1,†, Hao Cui1,†, Jingfei Ni1,†, Chi Liu1, Xin Nie1, Jiajia Wu1, Meiyi Wang1,
+Wenjie Xu1, Lin Gao1, Hao Li1, Xianhe Zhang1, Diyuan Liu2, Jia Pan1,∗, Chao Ji2,∗
+1iFLYTEK, 2LindenBot
+Abstract
+World–action models connect visual prediction with executable robot control.
+We present
+EffectWAM, which develops this connection through three complementary components: Effect,
+camera positional encoding (CaPE), and Action Grounding. Effect represents visual change as the
+difference between independently encoded future observations and a shared current-observation
+anchor. CaPE conditions endpoint pooling on relative camera pose when reliable extrinsics are
+available, while sharing the same learned parameters with pose-free pooling for uncalibrated trajec-
+tories. Action Grounding trains the visual representation to retain measured changes in end-effector
+pose and gripper state. An exponential moving average of the observation encoder supplies Effect
+targets. A shared generation expert learns to jointly predict Effect and an executable action chunk
+through flow matching, and reuses the sampled pair to generate future video on demand. This
+allows the controller to execute actions without waiting for video synthesis. We train on more than
+20,000 hours of heterogeneous embodied data, and accommodate dataset-specific joint, end-effector,
+and hand-pose representations. Our evaluation uses the Small (8B) configuration on all five
+benchmarks and additionally evaluates the Large (26B) configuration on RoboDojo. Experiments
+examine closed-loop manipulation across complementary benchmarks, and comparisons across
+multiple baseline policies show consistent improvements from Action Grounding.
+Date: November 27, 2026
+Correspondence: jiapan@iflytek.com; chaoji@iflytek.com
+Project Code: https://github.com/haocui1715/xx-wam-mem-0.5-preview
+Project Model: https://huggingface.co/haocui/xx-wam-mem-0.5-preview
+1
+Introduction
+Language-conditioned robot manipulation requires a policy to translate a task instruction into a sequence
+of actions that brings about the intended change in the environment. In closed-loop execution, the policy
+repeatedly observes the scene and adjusts its actions as the task progresses. Anticipating how the scene may
+evolve over an action horizon can help the policy connect its immediate commands to the intended outcome.
+The choice of what to predict about the future is therefore central to learning visual dynamics for robot
+control.
+Vision–language–action (VLA) models learn to map observations and instructions to robot actions [1], [2].
+Their action supervision leaves the visual consequences of those commands implicit. World–action models
+(WAMs) add an explicit objective for predicting visual dynamics [3], [4]. Future video provides a rich training
+†
+denotes co-first authors, *
+denotes corresponding authors
+arXiv:2611.32053v2  [cs.AI]  25 Nov 2026
+
+
+signal, but synthesizing it at every decision adds latency to closed-loop control. Fast-WAM avoids this cost
+by using future video only during training [5]. In matched experiments, LAWA found that this approach
+generalized less well than joint video and action prediction, especially with limited robot demonstrations, and
+showed that predicting a compact latent alongside actions could achieve comparable success to joint video and
+action prediction on RoboCasa at lower latency [6]. This motivates a policy that retains a compact prediction
+of action consequences at test time to support manipulation performance while keeping video synthesis off the
+control path.
+The choice of target determines which changes the policy learns to anticipate. La-JEPA, for example, uses
+a frozen V-JEPA 2.1 encoder to supervise future prediction alongside robot actions [7], [8]. Frozen video
+features inherit the distinctions learned during pretraining. A generic video prediction objective provides
+no direct supervision for retaining small changes in gripper opening or end-effector pose, even when those
+changes matter for control. Robot demonstrations provide that signal through synchronized images and
+measured state changes. We use these measurements to shape the representation that supplies the policy’s
+future prediction targets.
+To this end, we introduce Effect, a compact representation of visual change over the action horizon that learns
+from paired observations and robot measurements in the same demonstration. A shared encoder processes the
+current and selected future observations independently. We subtract the current feature from each future
+feature so that changes at different horizons are expressed relative to the state from which the robot acts. An
+auxiliary head reads out measured changes in end-effector pose and gripper state from the feature difference,
+encouraging the encoder to preserve information about the executed motion. An exponential moving average
+(EMA) of the encoder supplies the resulting Effect targets during policy training.
+Across robot embodiments and camera setups, similar manipulation motions can yield different image changes
+because cameras are mounted and move differently. For example, as a wrist camera approaches a drawer, the
+handle can shift in the image before the drawer moves. Qwen-RobotManip uses explicit camera geometry to
+align visual observations and end-effector motion across heterogeneous robot data [9]. To support transfer
+across embodiments and camera setups, we condition Effect’s attention pooling on the camera pose relative to
+the current observation when reliable extrinsics are available. This gives the encoder geometric context for
+distinguishing changes due to camera motion from changes in the scene. When extrinsics are unavailable, the
+same encoder uses pose-free pooling with shared weights, allowing both types of trajectory to contribute to
+training.
+EffectWAM integrates Effect, CaPE, and Action Grounding through two complementary flow-matching
+objectives. The first jointly models Effect and the demonstrated action chunk given the current observation
+and instruction. The second models future video latents given the same context, the clean Effect target, and
+the demonstrated action. At inference, the policy jointly samples Effect and the action chunk, retaining a
+prediction of visual change in each control decision. The controller can execute the sampled chunk as soon as
+joint sampling finishes. When a visual forecast is requested, the video mode uses the same Effect–action pair.
+We train with more than 20,000 hours of embodied data spanning heterogeneous action representations.
+We evaluate the Small (8B) configuration on LIBERO [10], LIBERO-Plus [11], RoboTwin 2.0 [12], Robo-
+Casa365 [13], and RoboDojo [14], and additionally evaluate the Large (26B) configuration on RoboDojo. The
+experimental comparisons distinguish these configurations and compare Small (8B) with existing policies. We
+also examine Action Grounding across multiple baseline models, where it consistently improves performance,
+supporting its value beyond a single architecture.
+Our contributions are as follows.
+• Effect: a compact prediction of visual change. We represent future observations relative to a shared
+current-observation anchor and jointly predict the resulting Effect sequence with executable action
+chunks. The same Effect–action pair conditions optional video generation, connecting control to visual
+forecasting without requiring video synthesis at each decision.
+• CaPE: geometry-aware visual transition encoding. We condition endpoint pooling on relative camera pose
+to account for viewpoint changes across robot and camera configurations. Calibrated and uncalibrated
+2
+
+
+trajectories share the same learned pooling parameters, supporting joint learning from heterogeneous
+demonstrations.
+• Action Grounding: supervision from measured motion. We make end-effector and gripper changes
+recoverable from Effect, shaping the visual representation around motion relevant to robot control.
+Evaluations across multiple baseline policies show consistent improvements from this objective, indicating
+that its benefit extends beyond our complete model.
+2
+Related Work
+Predictive targets for world-action models. Future video provides a learning signal for control, but different
+models use that signal at different points in the policy. Video-first policies infer controls from predicted
+frames [15], while DreamZero jointly generates video and actions [3]. Fast-WAM retains video prediction
+during training and skips it during action inference [5]. Predicting in a compact feature space offers another
+way to use future observations. V-JEPA 2.1 learns dense spatiotemporal features through self-supervised video
+pretraining [7]. La-JEPA uses a pretrained V-JEPA 2.1 encoder to define the future features that its policy
+predicts alongside actions during training [8]. InternW0-∆uses changes in video features more explicitly. Its
+Causal Imprint regresses differences between adjacent video latents and aligns intermediate features with
+future-video features before conditioning a separate action expert [4]. In each case, the feature space used to
+construct the prediction targets shapes which visual changes the policy is trained to anticipate.
+Learning representations of visual transitions. Latent-action models learn a representation of the transition
+itself. LAPA compresses changes between frame pairs into discrete codes that support future-frame recon-
+struction and uses those codes for policy pretraining [16]. Subsequent work uses additional signals to capture
+manipulation-relevant information. WALA learns latent actions by predicting current-anchored changes in
+pretrained semantic features and estimated depth, then uses its pretrained latent-action encoder to supervise
+the policy [17]. LAWA uses a tokenizer trained with next-frame reconstruction and manipulation-region masks,
+then jointly denoises a continuous latent and executable actions [6]. Robot measurements can also shape the
+representation. WLA3 encodes synchronized views together with available embodiment-state changes and
+learns through multimodal reconstruction and consistency across overlapping windows [18]. In our method,
+end-effector and gripper measurements supervise an auxiliary readout from visual feature differences. The
+observation encoder learns during policy training, and its EMA copy supplies the Effect targets. The resulting
+Effect is jointly predicted with actions and can also condition a video forecast together with the sampled
+action chunk. We treat Action Grounding as a distinct supervision mechanism and evaluate its contribution
+across multiple baseline policies, in addition to evaluating the complete model.
+Camera geometry in visual transition encoding. A visual transition can reflect both physical interaction
+and a change in viewpoint. EscherNet introduces camera positional encoding (CaPE) to express relative
+camera pose in attention, and PRoPE extends relative camera encoding to include camera intrinsics and
+extrinsics [19], [20]. We use CaPE to provide the Effect encoder with explicit viewpoint information when it
+pools each endpoint. We express available camera poses relative to the current observation and use the same
+pooling weights for trajectories with and without reliable extrinsics.
+3
+Model Design
+3.1
+Problem Formulation
+At each decision time t0, the policy observes the available RGB camera views I1:V
+0
+and receives a language
+instruction ℓ. We denote the conditioning information by C = (I1:V
+0
+, ℓ, S, Q), where S specifies the robot’s
+action representation and Q specifies the prediction horizons relative to t0. The model predicts an executable
+action chunk A = (a1, . . . , aNA) and an Effect sequence E = (e1, . . . , eNE). Each ek represents the change
+from the current observation to a requested future time. Actions and Effects are indexed by their respective
+temporal supports. We denote the latent of the future video by Y .
+3
+
+
+INPUTS AND ENCODING
+Task instruction
+Put the orange juice
+in the basket.
+Text embedding
+Text tokens
+···
+Current observation
+ViT
+Image encoder
+Image tokens
+···
+Frozen VAE
+Current frame only
+Visual tokens
+···
+World-Action Model ×36
+Semantic expert
+···
+···
+Context conditioning
+···
+Generation modules
+Video
+Effect
+Action
+Effect
+Predicted visual change
+Future world (optional)
+Reuses the sampled Effect and action
+Action chunk
+Figure 1 World–action inference. The World–Action mixture-of-transformers (MoT) combines a semantic expert
+(SEM) and a shared generation expert (GEN) through masked self-attention. SEM receives instruction and image
+tokens, and GEN receives visual tokens from the current observation encoded by a frozen video VAE. GEN jointly
+samples an Effect sequence ˆE and an action chunk ˆA. On request, a second generation pass uses the same sampled
+pair to produce a future video.
+We model the three variables through the conditional factorization
+pθ(E, A, Y | C) = pθ(E, A | C) pθ(Y | C, E, A).
+(1)
+The first factor gives the policy an action chunk and a prediction of the accompanying visual change. The
+second uses that pair to produce a visual forecast on request. During training, future observations provide the
+targets for E and Y . The policy conditions its joint Effect–action prediction on the current information in C.
+3.2
+Architecture Overview
+EffectWAM builds a common observation–language context for both factors in Eq. (1), linking joint Effect–
+action prediction with conditional video generation (Fig. 1). The task instruction is embedded as text tokens,
+and a trainable vision transformer (ViT) maps the available current camera views to merged image tokens.
+SEM receives both sets of tokens, with intermediate visual features injected into early SEM blocks. In parallel,
+the frozen video VAE encodes the current observation alone. A learned projection maps its latent to visual
+tokens for GEN.
+The mixture-of-transformers (MoT) uses masked self-attention to couple SEM and GEN. GEN shares its
+transformer backbone across Effect, action, and video, with modality-specific input and output projections. It
+first samples the Effect and action streams jointly. The optional video pass reuses the sampled pair and the
+original observation context, as detailed in Sec. 3.5. During training, the ViT also supplies pre-merger patch
+features to the observation endpoint encoder in Sec. 3.3. The component parameter counts for the Small (8B)
+and Large (26B) configurations are reported in Table 3.
+3.3
+Physically Grounded Effect Learning
+Effect representation. We learn Effect from a primary-camera demonstration clip by expressing future
+observations relative to a shared current-observation anchor (Fig. 2). The reference configuration samples
+future frames at offsets of 4, 8, 12, and 16 frames. The ViT encodes each sampled frame independently. Given
+the pre-merger patch features of frame Ik, the observation endpoint encoder (OBE) pools the patches using
+one learned query and four attention heads. An output projection and a two-layer MLP produce uk ∈Rd,
+where d = 256. The radial map zk =
+√
+d uk/
+p
+d + ∥uk∥2
+2 gives a bounded endpoint feature. Each Effect token
+compares a future endpoint with the same current endpoint z0,
+ek = zk −z0
+√
+2
+.
+(2)
+The sequence of differences describes changes from the state at which the action chunk is issued to each
+requested future time.
+4
+
+
+Demonstration clip
+Current frame
+Shared anchor
+Sample every 4 frames
+t
+t+4
+t+8
+t+12
+t+16
+Relative pose
+Optional CaPE
+Online branch
+EMA targets
+ViT + OBE
+ViT + OBE
+𝑧!
+𝑧"
+(
+−
+)÷
+2
+𝑒!
+𝑧̅!
+z%"
+(
+−
+)÷
+2
+𝑒̅!
+EMA update
+Grounding head
+∆𝒕
+Action Grounding
+Predicted ∆𝒔𝒕𝒂𝒕𝒆
+Measured ∆𝒔𝒕𝒂𝒕𝒆
+ℒ#
+MSE
++4
++8
++12
++16
+𝑬∗
+Effect supervision
+𝜖$ −𝐸∗
+Flow MSE
+Align MSE
+Effect head
+𝑣̅!
+Intermediate 
+features
+Linear proj.
+Figure 2 Physically grounded Effect learning. The online and exponential moving average (EMA) branches encode
+the same demonstration frames and form endpoint differences relative to the shared current frame. Optional camera
+positional encoding (CaPE) conditions both branches. The online grounding head uses ek and the elapsed interval ∆tk
+to predict measured state changes. The EMA branch stacks its differences into the detached target E⋆. The final GEN
+head is supervised with the velocity target ϵE −E⋆, and a linear projection of the intermediate Effect states (block 9
+in the reference configuration) is supervised with E⋆directly.
+Camera pose-aware pooling (CaPE). These endpoint differences can reflect camera motion as well as physical
+interaction. We incorporate camera positional encoding (CaPE) [19] into endpoint pooling when reliable
+extrinsics are available. Let TCk←W denote the world-to-camera transform for the primary camera at time tk.
+We express pose relative to the current camera,
+Pk = TCk←W
+ TC0←W
+−1,
+P0 = I4.
+(3)
+For a projected attention key kj at patch j of frame k, we split each key head into four-dimensional row-vector
+blocks and right-multiply each block by Pk. Equivalently, k′
+j = kj diag(Pk, . . . , Pk). All patches in a frame
+share the same relative transform. The query and values retain their original projections. For trajectories
+without camera pose conditioning, pooling uses the untransformed keys. The online and EMA branches use
+the same relative poses when available. Within each branch, both pooling routes use the same learned query,
+projections, and endpoint mapping, and they coincide when Pk = I4.
+Action Grounding and EMA targets. To relate these visual differences to measured physical changes, the
+grounding head takes the online Effect ek and the elapsed interval ∆tk from the current frame to the
+corresponding future frame. It predicts changes in end-effector translation, rotation, and gripper state over
+that interval. The physical grounding loss Lg compares these predictions with measurements using squared
+error over available quantities after normalization within each measurement family. We also regularize the
+current endpoint using consistency across two photometric views of the same observation and constraints on
+feature variance and covariance.
+To construct prediction targets from the learned endpoint representation, an exponential moving average
+(EMA) tracks the pre-merger ViT and the OBE. The EMA branch encodes the same frames and computes
+endpoint differences relative to its own current endpoint ¯z0. With ¯zk denoting the future EMA endpoint and
+sg the stop-gradient operator, we stack the differences in temporal order to obtain the clean target,
+e⋆
+k = sg
+ ¯zk −¯z0
+√
+2
+
+,
+E⋆= (e⋆
+1, . . . , e⋆
+NE).
+(4)
+As shown in Fig. 2, E⋆supplies both the Effect flow-matching target and the intermediate alignment target.
+It also conditions the video mode during training, as detailed in Sec. 3.4.
+3.4
+Shared Generation and Training Objectives
+We implement the two factors of Eq. (1) as separate forward modes of GEN with shared parameters. The
+joint Effect–action mode (ACT_EA) takes noisy Effect and action tokens and predicts their velocities using
+the current context. The video mode (VIDEO_EA) takes noisy future video tokens, conditioned on the same
+5
+
+
+Table 1 Generation modes during training. Both modes receive the current context C.
+Mode
+Additional clean conditions
+Noisy prediction variables
+ACT_EA
+None
+Eσ, Aσ
+VIDEO_EA
+E⋆, A⋆
+Yσ
+context and a clean Effect–action pair. During training, this pair consists of the detached EMA Effect target
+E⋆and the demonstrated action chunk A⋆. Table 1 summarizes the two modes.
+Within a sample, semantic tokens attend causally within their own stream. Generation tokens attend to the
+semantic tokens and to the clean and noisy tokens of the active generation mode. The diffusion timestep
+embedding is applied to the noisy tokens. The two modes enter the same optimization window through
+separate forward passes. The joint Effect–action mode uses the observed context and its own noisy variables.
+The frozen video VAE encodes the consecutive demonstration clip to obtain the future video target Y ⋆. In
+the reference configuration, its 4× temporal compression places the future latent slices at the same frame
+offsets as the Effect endpoints in Fig. 2. The visual condition in C comes from a separate encoding of the
+current observation alone.
+For each predicted variable x ∈{E, A, Y }, we draw Gaussian noise ϵx ∼N(0, I) and, in the reference
+configuration, a flow time σ = 5u/(1 + 4u) with u ∼U(0, 1). We interpolate between the clean target x⋆and
+noise and regress the velocity along that path,
+xσ = (1 −σ)x⋆+ σϵx,
+v⋆
+x = ϵx −x⋆.
+(5)
+Effect and action share the flow time and receive independent Gaussian noise. In video mode only the future
+video latent is noised. We define Le, La, and Ly as the corresponding squared velocity errors, averaged over
+valid coordinates and then over eligible requests. In Fig. 2, the final GEN head predicts ˆvE, which is compared
+with the velocity target ϵE −E⋆.
+In the reference configuration, the intermediate alignment loss Lalign applies a learned linear projection to
+the GEN block 9 hidden states at the Effect-token positions and uses squared error against the clean target
+E⋆. This loss is applied to eligible noisy Effect tokens with σ ≥0.5 once enabled according to the training
+schedule. The observation loss Lobs matches the online endpoint from each photometric view to the detached
+EMA endpoint of the other view. It also penalizes low per-dimension variance and off-diagonal covariance
+within compatible groups. Together with the grounding loss in Sec. 3.3, the combined objective is
+L = λeLe + λaLa + λyLy + λgLg
++ λobsLobs + λalignLalign.
+(6)
+3.5
+Closed-Loop Inference and On-Demand Video Generation
+At each decision time, the policy constructs C from the latest RGB observations, the task instruction, the
+action interface, and the requested prediction horizons. The ViT-derived semantic features and the frozen
+VAE latent of the current observation provide the visual context for sampling. The observation endpoint
+encoder, physical readout, and EMA target encoder are used during training. At inference, GEN samples the
+Effect sequence and action chunk jointly from the current context, as shown in Fig. 1.
+In the joint Effect–action mode, we initialize the Effect and action variables with independent Gaussian
+noise and treat them as one state sσ = (Eσ, Aσ) on a shared flow time grid. At each solver evaluation, the
+generation expert reads both noisy streams and predicts their velocities together,
+dsσ
+dσ =
+ ˆvE(sσ, σ, C), ˆvA(sσ, σ, C)
+
+.
+(7)
+We integrate toward σ = 0 to obtain ( ˆE, ˆA). The reference configuration uses a second-order Flow UniPC
+solver with four integration steps per generation mode. With classifier-free guidance, the conditional and
+6
+
+
+unconditional velocity estimates are evaluated on the same noisy state and combined before each solver update.
+Generation-token hidden states are recomputed at each evaluation because they can attend to the evolving
+noisy variables.
+For closed-loop control, we denormalize the valid coordinates of ˆA and convert them to the command
+representation specified by S. The controller executes a configured prefix of the chunk, which can be the
+entire chunk, then acquires a new observation and constructs the next context. The next decision uses the
+new context to sample a fresh Effect–action pair. The joint sampler therefore supplies the commands needed
+for execution as soon as its integration completes.
+When a visual forecast is requested, the video mode retains the observation snapshot and prediction horizons
+used to generate ( ˆE, ˆA). It takes this exact pair as clean conditions in the generator’s representation and
+starts from an independent video noise sample. The same generation expert integrates the video velocity
+to obtain ˆY , and the frozen VAE decodes the current and predicted future latents into RGB frames. The
+forecast describes the sampled action chunk from its original observation, including the planned suffix if the
+controller executes only a prefix before replanning. This procedure keeps video generation optional and ties
+the forecast to the same action proposal used for control.
+4
+Training Strategy
+4.1
+Data Preparation
+EffectWAM learns to predict visual changes together with executable actions. Training therefore combines
+robot demonstrations, human manipulation recordings, and egocentric video, which provide complementary
+coverage of robot control, hand–object interaction, and visual dynamics.
+The mixture spans different
+embodiments, camera configurations, manipulation skills, and levels of action annotation.
+We pretrain on more than 20,000 hours of embodied interaction data. The inventory contains 25,292.8 hours
+across 34 sources. Figure 3 summarizes this inventory by recorded episode duration; the displayed shares are
+not training sampling weights. Appendix A provides the complete source list.
+EffectWAM Pretraining Data Composition
+39.5%
+8.5%
+8.4%
+6.6%
+5.0%
+4.6%
+3.9%
+3.9%
+3.4%
+3.2%
+Others
+12.9%
+25,292.8
+Data hours
+34 sources
+Data sources
+Data hours
+Share
+Builddotai Egocentric-10K
+9,984.1
+39.5%
+HY-Embodied-0.5
+2,158.8
+8.5%
+HiFi-UMI-2K
+2,131.3
+8.4%
+ABC-130K
+1,664.9
+6.6%
+DROID
+1,276.1
+5.0%
+Jianzhi v1
+1,156.5
+4.6%
+Mifeng batch2
+994.8
+3.9%
+Lightwheel EgoProStandard
+994.3
+3.9%
+InternData M1 Franka
+848.3
+3.4%
+InternData A1
+820.3
+3.2%
+Others (24 sources)
+3,263.4
+12.9%
+Figure 3 EffectWAM pretraining data composition by recorded duration. The donut chart shows the ten largest
+sources individually and groups the remaining 24 as Others (3,263.4 hours; 12.9%). Data hours denotes recorded
+episode duration, with all shares normalized by the 25,292.8-hour total.
+7
+
+
+The largest sources include Builddotai Egocentric-10K, HY-Embodied-0.5, HiFi-UMI-2K, ABC-130K, and
+DROID. The remaining mixture includes InternData, RH20T, EgoDex, RoboCOIN, RoboMIND, Furni-
+tureBench, and additional human and robot interaction collections. Others also includes the official RoboDojo
+simulation training dataset (20.5 hours) [14] and GPT-Astra robot-operation data (10.5 hours).
+Robot demonstrations provide synchronized visual observations and control annotations for action learning.
+Their original records may include joint positions, end-effector poses, and gripper states or commands;
+dexterous-robot demonstrations may also provide finger-joint or hand-pose coordinates. We preserve the
+physical meaning of these annotations through the corresponding action interfaces.
+Human manipulation recordings broaden the observed range of object interactions and hand motions. Some
+recordings include tracked wrist and articulated hand poses, which describe human motion rather than
+executable robot commands. Video-only recordings contribute temporal visual supervision where action or
+physical-state labels are absent. Table 2 summarizes representative record types and their original annotations.
+These differences in annotation determine the supervision available during training.
+Table 2 Original action/state annotations across representative record types. Available fields vary by source and
+processing version.
+Data source / Record type
+Original action / State annotations
+Robot arm and gripper trajectories
+Joint positions, end-effector translation and orientation, and gripper states
+or commands, where provided.
+Dexterous robot demonstrations
+Arm pose plus finger-joint or hand-pose coordinates.
+Human hand recordings
+Tracked wrist and articulated hand poses.
+Video-only egocentric recordings
+No action or physical-state annotations; RGB sequences and available task
+text.
+4.2
+Training Process
+Training follows the objectives in Sec. 3.4, combining the supervision available in each trajectory. The current
+camera observations, task instruction, action interface, and prediction horizons define the conditioning context.
+The trainable ViT supplies visual features to the semantic expert, while the frozen VAE separately encodes
+the current observation to provide the observed visual latents.
+The prediction targets are constructed from the same demonstration. The EMA branch encodes the current
+and selected future observations independently through the pre-merger ViT and observation endpoint encoder.
+Future endpoints are compared with their shared current endpoint to form detached Effect targets, as defined
+in Eq. (4). The frozen VAE encodes the demonstration clip to supply future-video targets. The current visual
+context remains distinct from these future prediction targets.
+The shared generation expert is trained through two forward modes within the same optimization window.
+Joint Effect–action training uses a shared flow time and independent noise for Effect and actions. Video
+training noises the future-video latent while conditioning on the clean EMA Effect target and demonstrated
+action chunk. Both modes share generation parameters and optimize their corresponding velocity-prediction
+objectives.
+Each mode requires the annotations and conditioning variables specified in Table 1. Available physical
+measurements supervise Action Grounding through changes in end-effector pose and gripper state over the
+prediction interval. Reliable camera extrinsics enable CaPE-conditioned endpoint pooling; uncalibrated
+trajectories use the pose-free route with the same learned pooling parameters. Observation consistency
+and intermediate Effect alignment provide the additional supervision defined in Sec. 3.4. Terms requiring
+unavailable annotations are excluded. Visual-only recordings contribute the applicable visual objectives
+without supplying robot-action labels.
+Following training on the multi-source data, the model adapts to each benchmark’s demonstrations using
+the corresponding action interface. This preserves the source-specific meaning of action annotations while
+applying the shared training objectives.
+8
+
+
+Table 3 Model configurations of EffectWAM Small (8B) and Large (26B). Parameter counts refer to the listed modules.
+Scale
+Module
+Parameters (B)
+Small (8B)
+VLM
+2.2
+Video DiT
+5.0
+Action DiT
+1.2
+Large (26B)
+VLM
+8.3
+Video DiT
+16.4
+Action DiT
+2.0
+5
+Experiments
+We evaluate EffectWAM on five manipulation benchmarks to study task execution, robustness, compositional
+generalization, and capability-specific behavior. The comparisons examine task success relative to InternW0-
+∆[4], robustness to environmental perturbations, and generalization to unfamiliar task combinations.
+5.1
+Experimental Setup
+We evaluate two configurations, Small (8B) and Large (26B), with component sizes listed in Table 3. Small
+is evaluated on all five benchmarks, and Large is additionally evaluated on RoboDojo. The two RoboDojo
+configurations are compared with baselines of similar model size in separate tables.
+Section 5.2 evaluates standard task execution and robustness to changes in observations, robot initial states,
+and scene configuration. LIBERO measures task performance relative to InternW0-∆, while LIBERO-Plus and
+the Clean/Randomized comparison on RoboTwin 2.0 assess performance under distribution shifts. Section 5.3
+examines whether the gains extend beyond atomic tasks to seen and unseen combinations on RoboCasa365.
+RoboDojo complements these comparisons with a capability-level analysis, using success rates and partial-credit
+task scores to characterize full-task completion and intermediate progress across five capability dimensions.
+On LIBERO and RoboCasa365, we evaluate InternW0-∆(8B) and EffectWAM using the same task sets and
+episode budgets. EffectWAM uses only Clean demonstrations for RoboTwin 2.0 and only Human300 for
+RoboCasa365, without Target training data. The RoboTwin comparison is restricted to policies adapted using
+only Clean demonstrations from this benchmark. Model sizes are approximate and include frozen conditioning
+encoders but exclude VAEs.
+We follow each benchmark’s aggregation protocol. LIBERO-Plus and RoboCasa365 aggregate success over
+evaluation episodes, RoboTwin 2.0 weights Clean and Randomized success equally, and RoboDojo weights its
+five capability dimensions equally. Success rates are reported as percentages; RoboDojo additionally reports
+partial-credit task scores; Small is evaluated with one seed, while Large reports variation across three seeds.
+5.2
+Task Performance and Robustness
+Standard task execution. We use standard LIBERO to establish task execution performance before introducing
+distribution shifts. We evaluate EffectWAM and InternW0-∆across four suites with 10 tasks per suite and
+50 episodes per task, totaling 2,000 episodes per model. EffectWAM Small achieves 99.20% overall success,
+compared with 99.00% for InternW0-∆(Table 4). The comparison spans supervised policies and methods
+with additional post-training, providing a broader reference for standard task execution.
+EffectWAM improves overall success from an already high baseline, with the clearest gain on the Goal suite:
+success rises from 98.00% to 99.20%. Object success also increases to 100.00%, while Spatial remains at
+99.20%. The aggregate improvement is driven primarily by the Goal suite, alongside high success on object
+and spatial tasks. Its 99.20% overall success matches SRPO, while retaining at least 98.40% success in every
+suite.
+Robustness across distribution shifts. We next evaluate whether this high standard-task performance extends
+to changes in camera viewpoint, robot initial state, language, lighting, background, visual noise, and scene
+9
+
+
+Table 4 Standard LIBERO success rates (%). The highest score is shown in bold red, and the second-highest distinct
+score is underlined.
+Method
+Size (B)
+Spatial
+Object
+Goal
+Long
+Overall
+OpenVLA-OFT (joint) [21]
+7.0
+97.7
+98.0
+96.1
+95.3
+96.8
+UniVLA [22]
+7.0
+96.5
+96.8
+95.6
+92.0
+95.2
+RIPT-VLA [23]
+7.0
+98.6
+98.6
+99.0
+93.8
+97.5
+NORA-1.5 (DPO) [24]
+4.0
+98.0
+96.0
+95.4
+90.5
+95.0
+SRPO [25]
+7.0
+98.8
+100
+99.4
+98.6
+99.2
+AVA-VLA (joint) [26]
+7.0
+97.4
+99.4
+97.4
+97.6
+98.0
+InternW0-∆[4]
+8.0
+99.2
+99.8
+98.0
+99.0
+99.0
+EffectWAM Small
+8.0
+99.2
+100
+99.2
+98.4
+99.2
+Table 5 LIBERO-Plus success rates (%). Overall aggregates success over evaluation episodes. The highest score is
+shown in bold red, and the second-highest distinct score is underlined.
+Method
+Size (B)
+Camera
+Robot
+Language
+Light
+Bkgd
+Noise
+Layout
+Overall
+SRPO (aug.) [25]
+7.0
+83.4
+62.0
+73.6
+97.2
+97.7
+85.7
+75.2
+82.1
+OpenVLA-OFT [21]
+7.0
+56.4
+31.9
+79.5
+88.7
+93.3
+75.8
+74.2
+69.6
+RIPT-VLA [23]
+7.0
+55.2
+31.2
+77.6
+88.4
+91.6
+73.5
+74.2
+68.4
+NORA-Long [27]
+3.0
+2.20
+37.0
+65.1
+45.7
+58.6
+12.8
+62.1
+39.0
+π0 [2]
+3.3
+13.8
+6.0
+58.8
+85.0
+81.4
+79.0
+68.9
+53.6
+π0-FAST [28]
+3.0
+65.1
+21.6
+61.0
+73.2
+73.2
+74.4
+68.8
+61.6
+InternW0-∆[4]
+8.0
+90.6
+91.1
+92.9
+95.8
+99.4
+94.0
+88.4
+92.8
+EffectWAM Small
+8.0
+91.7
+91.4
+93.4
+96.5
+99.6
+93.4
+88.7
+93.1
+SRPO (aug.) uses the augmented-data configuration. Evaluations of OpenVLA-OFT, RIPT-VLA, NORA, and the π0 variants
+are from LIBERO-Plus [11].
+layout using LIBERO-Plus. EffectWAM Small succeeds in 9,338 of 10,030 episodes, yielding 93.10% overall
+success (Table 5). The rate is computed over all episodes to account for unequal category sizes. The 93.10%
+overall rate is 0.30 points above the reported InternW0-∆result. Category-level results show how this
+performance extends across distinct sources of variation.
+High success extends across the seven perturbation categories: six exceed 91%, and all reach at least 88.66%.
+Performance is particularly strong under background and lighting variation, at 99.54% and 96.50%, respectively,
+while language and visual-noise variations both exceed 93%. Camera and Robot variations also retain success
+above 91%. These results show that high task completion extends across both appearance changes and
+changes to the camera viewpoint or robot initial state, complementing the standard-task results with broad
+perturbation coverage.
+Bimanual manipulation under randomization. RoboTwin 2.0 tests whether the policy maintains bimanual
+manipulation performance when the same task set is evaluated under scene randomization. We use 50
+tasks with 100 episodes per task in each of the Clean and Randomized settings, totaling 10,000 episodes.
+EffectWAM Small achieves 91.82% success on Clean and 74.22% on Randomized, with an equal-weight average
+of 83.02% (Table 6). All methods in this comparison use only Clean demonstrations for benchmark adaptation.
+Randomized evaluation therefore tests transfer to scene conditions absent from those demonstrations.
+EffectWAM exceeds the reported InternW0-∆results in both settings, by 1.82 percentage points on Clean
+and 2.32 points on Randomized. The advantage over this reference therefore extends to randomized bimanual
+manipulation, with a larger margin in the Randomized setting. Its 83.02% average also exceeds PICA-WAM’s
+reported 82.7%, with a higher Clean success rate. Maintaining 74.22% success under randomization after
+Clean-only training demonstrates transfer beyond the benchmark training conditions.
+Individual tasks further illustrate stable execution across settings. For example, shake_bottle maintains 100%
+Clean and 99% Randomized success. The nearly unchanged completion rate on this task shows that successful
+10
+
+
+Table 6 RoboTwin 2.0 success rates (%) under Clean-only training, evaluated on 50 tasks in both Clean and Randomized
+test conditions. The highest score is shown in bold red, and the second-highest distinct score is underlined.
+Method
+Size (B)
+Clean→Clean
+Clean→Random
+Average
+Fast-WAM [5]
+11.7
+77.8
+1.9
+39.9
+4D-WAM [29]
+11.0
+81.5
+41.8
+61.7
+OpenWAM-α [30]
+11.7
+89.4
+48.7
+69.0
+InternW0-∆[4]
+8.0
+90.0
+71.9
+81.0
+PICA-WAM [31]
+8.0
+90.7
+74.7
+82.7
+EffectWAM Small
+8.0
+91.8
+74.3
+83.1
+Results for Fast-WAM and 4D-WAM are from InternW0-∆[4]. 4D-WAM uses the LingBot-VA architecture [32].
+Table 7 RoboCasa365 success rates (%) on the 50 evaluation tasks. The highest score is shown in bold red, and the
+second-highest distinct score is underlined.
+Method
+Size (B)
+Atomic-Seen
+Composite-Seen
+Composite-Unseen
+Overall
+Xiaomi-Robotics-1 [33]
+5.1
+80.2
+57.1
+32.1
+57.4
+RLDX-1 [34]
+≈7
+67.6
+27.9
+8.5
+36.0
+InternW0-∆[4]†
+8.0
+76.5
+47.7
+17.3
+48.3
+EffectWAM Small
+8.0
+76.9
+48.2
+19.4
+49.3
+†: Evaluated by us.
+execution can be preserved under scene randomization. Full per-task results are reported in Appendix B.
+5.3
+Compositional Manipulation and Capability Analysis
+Compositional generalization. We use RoboCasa365 to examine whether improved task execution extends to
+combinations of behaviors, including combinations not seen during training. Its Atomic-Seen, Composite-
+Seen, and Composite-Unseen splits separate performance on atomic tasks from performance on familiar and
+unfamiliar compositions.
+We evaluate version 1.0.1 on 50 tasks with 30 episodes per task. The 1,500 episodes comprise 540 Atomic-Seen,
+480 Composite-Seen, and 480 Composite-Unseen episodes. InternW0-∆uses the same task grouping and
+episode budget as EffectWAM Small. EffectWAM is trained on Human300 only; the Target training data are
+not used. Overall success is weighted by the number of episodes in each split. Table 7 compares performance
+on the three splits and their episode-weighted overall success.
+EffectWAM improves success across all three splits, with 739 successful episodes compared with 725 for
+InternW0-∆. Overall success increases from 48.33% to 49.27%, a gain of 0.93 percentage points based on the
+episode counts. The largest improvement occurs on Composite-Unseen: ten of the 14 additional successes
+come from this split, corresponding to a 2.08-point gain. Atomic-Seen and Composite-Seen each contribute
+two additional successes. The benefit therefore extends to unfamiliar task combinations, where the gain is
+larger than on the better-performing atomic tasks.
+Capability-specific performance.
+We use RoboDojo to characterize EffectWAM’s performance across
+Generalization, Precision, Long-Horizon, Memory, and Open capabilities.
+Success rate (SR) measures
+complete execution, while the benchmark’s task scores also capture partial progress. Together with individual
+task results, these measures reveal the strongest capabilities and task behaviors of the policy.
+We evaluate both configurations on all 42 RoboDojo simulation tasks: Small at training step 3,000 using
+seed 0, and Large at step 7,500 using three evaluation seeds. Each seed uses 25 standard and 25 randomized
+episodes for each of the 12 Generalization tasks and 50 episodes for each of the remaining 30 tasks. This
+yields 2,100 episodes for Small and 6,300 episodes for Large. Following the official protocol [14], we combine
+standard and randomized episodes for each Generalization task, average task metrics within each capability,
+11
+
+
+Table 8 RoboDojo results at two model scales. Capability columns and Overall report success rates (%); Score is the
+overall partial-credit task score. Results shown with ± are reported as the mean ± standard deviation across three
+seeds; EffectWAM Small uses one seed. The highest score is shown in bold red, and the second-highest distinct score
+is underlined.
+Method
+Size (B) Generalization
+Precision
+Long-Horizon
+Memory
+Open
+Overall
+Score
+Small scale
+Awomo-0.5V [35]
+≈10.7
+20.80
+28.10
+25.00
+12.50
+28.10
+22.90
+28.70
+PrismWAM (Small) [36]
+≈11.7
+19.56
+19.50
+22.08
+30.11
+1.500
+18.55
+25.10
+EffectWAM Small
+≈8.40
+24.33
+20.75
+27.00
+55.00
+12.25
+27.87
+33.53
+Large scale
+VPP2 [37]
+≈24.7
+29.50
+35.17
+37.00
+55.56
+4.08
+32.26
+39.26
+PrismWAM (Large) [36]
+≈25.0
+29.33 ± 0.98
+31.08 ± 2.66
+31.00 ± 0.74
+50.67 ± 0.27
+4.42 ± 0.66
+29.30 ± 0.61 36.23 ± 0.55
+EffectWAM Large
+≈26.7
+33.22 ± 1.14
+34.67 ± 0.72
+36.92 ± 1.12
+54.22 ± 1.37 11.00 ± 1.24 34.01 ± 0.12 40.29 ± 0.32
+Sizes are estimated from model components.
+and assign equal weight to the five capability means. Small results are single-seed estimates without an
+across-seed standard deviation; Large results report the mean and population standard deviation across seeds.
+Table 8 groups the comparisons by model scale, with a parameter range spanning less than 5B within each
+group. EffectWAM Small achieves 27.87% overall success and a task score of 33.53. Its overall success rate
+exceeds the reported Awomo-0.5V and PrismWAM (Small) results. Memory is its strongest capability, with
+55.00% success and a task score of 55.38; its Memory success is also higher than the selected small-scale
+baselines. Long-Horizon reaches 27.00% success and a score of 41.29, indicating credited progress beyond
+complete task execution. Precision and Open remain weaker than Awomo-0.5V. The single-seed evaluation
+does not quantify run-to-run variability.
+At the larger scale, EffectWAM Large achieves an overall success rate of 34.01% and a task score of 40.29,
+exceeding VPP2 by 1.75 and 1.03 points, respectively (Table 8). Compared with PrismWAM∗(Large), it
+improves overall success by 4.71 percentage points and the task score by 4.06 points, with higher success across
+all five capabilities. Relative to VPP2, the largest success-rate advantage is on Open tasks, where success
+increases from 4.08% to 11.00%; Generalization also improves from 29.50% to 33.22%. The advantage over
+VPP2 is therefore concentrated in the Open and Generalization capabilities. Task scores range from 0 to 100
+and credit partial completion, whereas success requires full task completion. Within this evaluation, Memory
+is the strongest capability, with 54.22% success and a closely aligned task score of 54.62. Individual tasks show
+particularly high completion rates: press_by_number succeeds in 149 of 150 episodes and cover_blocks in
+144 of 150. The close agreement between the category’s two metrics indicates that its score is dominated by
+complete task execution, with these selected tasks providing concrete examples of reliable performance.
+Long-Horizon achieves a task score of 53.44 alongside 36.92% full-task success. The task score captures
+additional credited progress beyond the episodes counted as complete successes, providing a complementary
+view of the policy’s execution on extended tasks. Together, the Memory and Long-Horizon results highlight
+two aspects of EffectWAM Large’s capability profile: frequent complete execution on Memory tasks and
+substantial credited progress on Long-Horizon tasks.
+Execution visualization. To relate the capability scores to concrete manipulation behavior, Fig. 4 presents
+successful executions of EffectWAM Large (26B) from each of RoboDojo’s five capability categories [14]. The
+Generalization example folds the sleeves and lower hem of a rotated garment in a cluttered scene with colored
+lighting, combining deformable-object handling with changes in visual appearance. In the Long-Horizon
+sequence, the robot disposes of four bottles with different initial poses. A bottle is regrasped after returning
+to the tabletop, and later bottles are passed between the grippers before disposal, maintaining progress across
+repeated grasping and transfer operations.
+The Memory example first covers three colored blocks, then reveals them in the required red–green–blue
+order. This differs from their spatial order, so the color–position associations observed before occlusion remain
+relevant when selecting which cup to lift. In Open, the robot uses a ruler to bring the blocks into line, then
+12
+
+
+repositions it from the left end to correct the remaining misalignment. The Precision example alternates
+individual support-block placements with coordinated transport of the horizontal platforms, then adds the
+two top pieces to complete an eight-piece tower. Each new layer depends on the support arrangement below it,
+and the structure remains standing after release. These sequences complement the aggregate results in Table 8
+with examples of the interactions required for completion. Appendix C presents 25 additional successful
+trajectories across the same five categories.
+Attention visualization. To examine the visual information emphasized during prediction, Fig. 5 compares
+attention for future Effect prediction in the full model with future-RGB attention after removing Effect
+supervision. Both use the Small (8B) configuration. In AgiBot World [38], the Effect response remains
+near the gripper–door interaction during pushing, with sparse, faint responses elsewhere; the RGB maps
+also highlight distant people, nearby fixtures, and the floor region. In LIBERO [10], both variants attend
+to the held bowl as it descends toward the plate. The RGB-only maps additionally emphasize non-target
+bowls and the static cabinet on the left. In Ego4D [39], the held plastic lid remains the main focus of the
+Effect maps as the first-person viewpoint changes, while RGB prediction also highlights the metal lid on the
+counter, containers, and peripheral equipment. Across these examples, Effect has fewer, smaller, and generally
+dimmer off-target responses, while retaining prominent activity near the manipulated object. This pattern is
+consistent with the intended emphasis on action-related visual change and provides a qualitative complement
+to the robustness results.
+13
+
+
+(a) Fold clothes
+Generalization, ep. 2
+Execution order
+Initial layout
+frame 0
+First sleeve folded
+frame 72
+Both sleeves folded
+frame 152
+Fold the lower hem
+frame 240
+Folded garment
+frame 298
+(b) Put bottles away
+Long-Horizon, ep. 6
+Execution order
+Initial layout
+frame 0
+Bottle back on table
+frame 120
+Regrasp the bottle
+frame 256
+Transfer the next bottle
+frame 384
+Cleared workspace
+frame 585
+(c) Cover and reveal blocks
+Memory, ep. 37
+Execution order
+Color layout
+frame 0
+All blocks covered
+frame 272
+Red revealed
+frame 368
+Green revealed
+frame 448
+Blue revealed
+frame 543
+(d) Align blocks
+Open, ep. 10
+Execution order
+Initial layout
+frame 0
+Grasp the ruler
+frame 32
+First tool push
+frame 72
+Adjust from the left
+frame 144
+Aligned blocks
+frame 177
+(e) Build a tower
+Precision, ep. 42
+Execution order
+Initial layout
+frame 0
+Lower platform
+frame 264
+Upper supports
+frame 456
+Upper platform
+frame 536
+Tower complete
+frame 721
+Figure 4 Selected successful RoboDojo simulation executions of EffectWAM Large (26B): (a) folding clothes in a
+randomized scene, (b) putting bottles into a dustbin, (c) covering and revealing colored blocks, (d) aligning blocks with
+a ruler, and (e) building a tower. Each row follows one recorded head-camera trajectory from left to right. Frames
+capture task-relevant events at unequal intervals; episode IDs and zero-based source-video frame indices identify the
+recordings. Main views use a fixed crop within each row. Blue outlines locate the regions shown in blue-bordered
+insets from the same frame; the Memory detail crop is fixed across stages.
+14
+
+
+(a) AgiBot World
+Push a door panel
+frame 927
+frame 934
+frame 941
+frame 949
+frame 956
+Effect
+RGB-only
+(b) LIBERO
+Lower a bowl toward a plate
+frame 79
+frame 84
+frame 89
+frame 93
+frame 98
+Effect
+RGB-only
+(c) Ego4D
+Reposition a plastic lid
+frame 30
+frame 37
+frame 44
+frame 52
+frame 59
+Effect
+RGB-only
+Figure 5 Qualitative attention comparison for EffectWAM Small (8B): (a) pushing a door panel, (b) lowering a bowl
+toward a plate, and (c) repositioning a plastic lid. Effect denotes attention for future Effect prediction in the full
+model; RGB-only denotes attention for future-RGB prediction without Effect supervision. Maps aggregate attention
+from the final eight layers to historical input frames, averaging over heads and summing over future-prediction query
+tokens, with the same normalization and color scale for both variants. Paired rows show the same frames in temporal
+order, with zero-based source-frame indices above each column; the sampled frames are not consecutive. Brighter
+colors indicate stronger displayed attention. Light pink polygon outlines highlight background regions with off-target
+attention for easier visual comparison. These outlines are added annotations; attention strength is represented by the
+underlying heatmaps.
+15
+
+
+The experiments highlight high standard-task success, broad perturbation coverage, and improved compo-
+sitional execution. EffectWAM Small achieves 99.20% success on LIBERO and 93.10% on LIBERO-Plus,
+exceeds the reported InternW0-∆results in both RoboTwin settings, and improves RoboCasa365 success
+across all three splits. RoboCasa365 gains are largest on unseen compositions. On RoboDojo, Small reaches
+27.87% overall success with strong Memory performance, and Large reaches 34.01%.
+6
+Limitations and Conclusion
+Limitations. Performance remains uneven across evaluation conditions. The decrease under RoboTwin
+randomization, the low success on unseen Robocasa365 compositions, and the difficulty of RoboDojo’s Open
+tasks identify robustness and generalization as continuing challenges. On long-horizon RoboDojo tasks, the
+gap between partial-credit scores and full-task success further highlights the need to sustain useful behavior
+through task completion.
+The method also depends on the availability of geometric and physical supervision. CaPE requires reliable
+camera extrinsics; uncalibrated trajectories use the shared pose-free route. Action Grounding supervises only
+available, consistently aligned measurements, limiting its coverage of physical quantities across heterogeneous
+data sources. At inference, optional video generation keeps video synthesis outside the control path, but joint
+Effect–action sampling still incurs computational cost. Prediction horizons remain configured inputs and do
+not automatically adapt to subgoal duration.
+Conclusion. We presented EffectWAM, a world–action model that connects visual change prediction with
+executable robot control through Effect, CaPE, and Action Grounding. Effect encodes visual change as
+endpoint differences relative to a shared current-observation anchor. CaPE incorporates relative camera
+geometry into endpoint pooling when calibration is available, while Action Grounding aligns the representation
+with measured motion. A shared generation expert jointly predicts Effect and actions through flow matching
+and reuses the sampled pair for optional video forecasting. Training on more than 20,000 hours of heterogeneous
+embodied data brings these components together across robot and human demonstrations with different action
+representations.
+Evaluation across five manipulation benchmarks demonstrates strong standard-task performance and improved
+success over the original policy on Robocasa365, with the largest gain on unseen compositions. Cross-baseline
+evaluations further indicate that Action Grounding improves performance across the evaluated baseline
+policies, supporting its role as a transferable training signal. The remaining sensitivity to environmental
+variation and difficulty in completing composite tasks motivate further work on robust physical grounding,
+adaptive action horizons, and more efficient joint sampling.
+References
+[1] M. J. Kim et al., “OpenVLA: An open-source vision-language-action model,” in Proc. Conf. Robot. Learn. (CoRL),
+ser. Proc. Mach. Learn. Res., vol. 270, 2025, pp. 2679–2713.
+[2] K. Black et al., “π0: A vision-language-action flow model for general robot control,” in Proc. Robotics: Science
+and Systems (RSS), 2025, doi: 10.15607/RSS.2025.XXI.010.
+[3] S. Ye et al., “World action models are zero-shot policies,” 2026, arXiv:2602.15922.
+[4] X. Miao et al., “InternW0-∆: A world action model bridging predictive dynamics and actions with 20K+ hours of
+open data,” 2026, arXiv:2609.31394.
+[5] T. Yuan, Z. Dong, Y. Liu, and H. Zhao, “Fast-WAM: Do world action models need test-time future imagination?”
+2026, arXiv:2603.16666.
+[6] X. Li et al., “Latent action as intention enables efficient future imagination for world action models,” 2026,
+arXiv:2608.24882.
+[7] L. Mur-Labadia et al., “V-JEPA 2.1:
+Unlocking dense features in video self-supervised learning,” 2026,
+arXiv:2603.14482.
+[8] M. Clémente et al., “La-JEPA: Compact robot policies with latent world modeling,” 2026, arXiv:2611.08156.
+16
+
+
+[9] H. Yuan et al., “Qwen-RobotManip technical report: Alignment unlocks scale for robotic manipulation foundation
+models,” 2026, arXiv:2606.17846.
+[10] B. Liu et al., “LIBERO: Benchmarking knowledge transfer for lifelong robot learning,” in Adv. Neural Inf. Process.
+Syst., vol. 36, 2023, pp. 44 776–44 791, doi: 10.52202/075280-1939.
+[11] S. Fei et al., “LIBERO-Plus: A progressive robustness benchmark for visual-language-action models,” in Proc.
+IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR), 2026, pp. 38 574–38 583.
+[12] T. Chen et al., “RoboTwin 2.0: A scalable data generator and benchmark with strong domain randomization for
+robust bimanual robotic manipulation,” in Proc. 43rd Int. Conf. Mach. Learn. (ICML), ser. Proc. Mach. Learn.
+Res., vol. 306, 2026, pp. 13 673–13 699.
+[13] S. Nasiriany, S. Nasiriany, A. Maddukuri, and Y. Zhu, “RoboCasa365: A large-scale simulation framework for
+training and benchmarking generalist robots,” in Proc. Int. Conf. Learn. Represent. (ICLR), 2026.
+[14] T. Chen et al., “RoboDojo: A unified sim-and-real benchmark for comprehensive evaluation of generalist robot
+manipulation policies,” 2026, arXiv:2607.04434.
+[15] Y. Du et al., “Learning universal policies via text-guided video generation,” in Adv. Neural Inf. Process. Syst.,
+vol. 36, 2023, pp. 9156–9172, doi: 10.52202/075280-0403.
+[16] S. Ye et al., “Latent action pretraining from videos,” in Proc. Int. Conf. Learn. Represent. (ICLR), 2025.
+[17] J. Liu et al., “WALA: Learning executable latent actions from action-labeled demonstrations and action-free
+videos,” 2026, arXiv:2607.11397.
+[18] P. Liu et al., “WLA3:
+World latent action modeling for semantics, dynamics, and kinematics,” 2026,
+arXiv:2609.15870.
+[19] X. Kong, S. Liu, X. Lyu, M. Taher, X. Qi, and A. J. Davison, “EscherNet: A generative model for scalable view
+synthesis,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR), 2024, pp. 9503–9513.
+[20] R. Li, B. Yi, J. Liu, H. Gao, Y. Ma, and A. Kanazawa, “Cameras as relative positional encoding,” in Adv. Neural
+Inf. Process. Syst., vol. 38, 2025, pp. 18 020–18 045, doi: 10.52202/085713-0540.
+[21] M. J. Kim, C. Finn, and P. Liang, “Fine-tuning vision-language-action models: Optimizing speed and success,” in
+Proc. Robotics: Science and Systems (RSS), 2025, doi: 10.15607/RSS.2025.XXI.017.
+[22] Q. Bu et al., “Learning to act anywhere with task-centric latent actions,” in Proc. Robotics: Science and Systems
+(RSS), 2025, doi: 10.15607/RSS.2025.XXI.014.
+[23] S. Tan, K. Dou, Y. Zhao, and P. Krähenbühl, “Interactive post-training for vision-language-action models,” 2025,
+arXiv:2505.17016.
+[24] C.-Y. Hung et al., “NORA-1.5: A vision-language-action model trained using world model- and action-based
+preference rewards,” 2025, arXiv:2511.14659.
+[25] S. Fei et al., “SRPO: Self-referential policy optimization for vision-language-action models,” 2025, arXiv:2511.15605.
+[26] L. Xiao et al., “AVA-VLA: Improving vision-language-action models with active visual attention,” in Proc.
+IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR), 2026, pp. 13 453–13 463.
+[27] C.-Y. Hung et al., “NORA: A small open-sourced generalist vision language action model for embodied tasks,”
+2025, arXiv:2504.19854.
+[28] K. Pertsch et al., “FAST: Efficient action tokenization for vision-language-action models,” in Proc. Robotics:
+Science and Systems (RSS), 2025, doi: 10.15607/RSS.2025.XXI.012.
+[29] L. Yang et al., “4D-WAM: Infusing spatiotemporal awareness into world action models through trajectory fields,”
+2026, arXiv:2608.08023.
+[30] Y. Wang et al., “OpenWAM: An open, modular exploration towards systematic world-action model pretraining,”
+2026, arXiv:2609.07398.
+[31] Y. Zou, Y. Yao, G. Jiao, J. Ma, G. Zheng, and X. Gao, “PICA-WAM: Visual perturbation invariance via
+cross-appearance self-alignment in world action models,” 2026, arXiv:2610.26813.
+[32] L. Li et al., “Causal world modeling for robot control,” 2026, arXiv:2601.21998.
+[33] Xiaomi Robotics Team, “Xiaomi-Robotics-1: Scaling vision-language-action models with over 100k hours of
+real-world trajectories,” 2026, arXiv:2607.15330.
+[34] D. Kim et al., “RLDX-1 Technical Report,” 2026, arXiv:2605.03269.
+17
+
+
+[35] Awomo-WAM Team, “Awomo-0.5 technical report,” Awomo-WAM Team, Tech. Rep., Oct. 2026. [Online].
+Available: https://awomo-westlakedi.github.io/Awomo-0.5-page/assets/awomo-0.5-report.pdf
+[36] T. Xin et al., “PrismWAM: Decoupling state representations in world action models,” 2026, arXiv:2610.26564.
+[37] Y. Guo et al., “Video prediction policy 2: Predict better, act better,” 2026, arXiv:2610.10270.
+[38] Q. Bu et al., “AgiBot World Colosseo: A large-scale manipulation platform for scalable and intelligent embodied
+systems,” in Proc. IEEE/RSJ Int. Conf. Intell. Robots Syst. (IROS), 2025, pp. 3549–3556.
+[39] K. Grauman et al., “Ego4D: Around the world in 3,000 hours of egocentric video,” in Proc. IEEE/CVF Conf.
+Comput. Vis. Pattern Recognit. (CVPR), 2022, pp. 18 995–19 012.
+18
+
+
+A
+Pretraining Data Statistics
+The pretraining data comprise 34 sources with a total recorded duration of 25,292.8 hours. Table 9 provides the
+per-source durations underlying the data composition in Fig. 3. Unused chain-of-thought data are excluded,
+and alternative processing versions of the same source are counted only once.
+Table 9 Recorded duration of each pretraining data source, in hours.
+Source
+Hours
+Builddotai Egocentric-10K
+9,984.1
+HY-Embodied-0.5
+2,158.8
+HiFi-UMI-2K
+2,131.3
+ABC-130K
+1,664.9
+DROID
+1,276.1
+Jianzhi v1
+1,156.5
+Mifeng batch2
+994.8
+Lightwheel EgoProStandard
+994.3
+InternData M1 Franka
+848.3
+InternData A1
+820.3
+RH20T
+784.7
+EgoDex v1
+724.2
+Fractal
+350.2
+RoboCOIN
+215.6
+BC-Z
+165.8
+GM100
+151.9
+BitRobot HIW-500
+127.9
+Mifeng batch1
+111.6
+FurnitureBench
+109.7
+EgoVerse Lightwheel part1
+100.4
+EgoVerse Aria v1
+74.6
+InternData M1 AgileX
+62.5
+PineLab ManuFacet
+49.3
+EgoVerse Mecka v1
+38.3
+Imitator robot
+37.0
+FineArt 90Hz
+33.3
+Imitator sim
+30.9
+RoboMIND2 AgileX
+28.4
+RoboDojo (simulation)
+20.5
+EgoVerse Lightwheel part2
+12.6
+GPT-Astra (robot operation)
+10.5
+Stanford Hydra v2
+10.0
+Imitator human v1
+8.1
+Berkeley UR5
+5.4
+Total
+25,292.8
+19
+
+
+B
+Per-Task Results on RoboTwin 2.0
+Table 10 Per-task RoboTwin 2.0 success rates (%) for EffectWAM Small (8B).
+Task
+Clean→Clean
+Clean→Random
+Task
+Clean→Clean
+Clean→Random
+adjust_bottle
+100
+96
+place_container_plate
+99
+80
+beat_block_hammer
+99
+74
+place_dual_shoes
+92
+61
+blocks_ranking_rgb
+91
+85
+place_empty_cup
+100
+75
+blocks_ranking_size
+71
+42
+place_fan
+96
+77
+click_alarmclock
+100
+90
+place_burger_fries
+100
+98
+click_bell
+100
+91
+place_mouse_pad
+91
+71
+dump_bin_bigbin
+99
+94
+place_object_basket
+87
+64
+grab_roller
+100
+77
+place_object_scale
+98
+83
+handover_block
+93
+67
+place_object_stand
+98
+87
+handover_mic
+99
+82
+place_phone_stand
+92
+64
+lift_pot
+100
+81
+move_pillbottle_pad
+100
+71
+move_can_pot
+94
+65
+place_shoe
+96
+80
+move_playingcard_away
+98
+73
+press_stapler
+91
+80
+move_stapler_pad
+74
+65
+put_bottles_dustbin
+93
+88
+hanging_mug
+56
+40
+put_object_cabinet
+67
+38
+open_laptop
+94
+78
+rotate_qrcode
+93
+48
+open_microwave
+68
+43
+scan_object
+90
+59
+pick_diverse_bottles
+91
+78
+shake_bottle
+100
+99
+pick_dual_bottles
+100
+81
+shake_bottle_horizontally
+100
+97
+place_a2b_left
+92
+70
+stack_blocks_three
+99
+81
+place_a2b_right
+94
+64
+stack_blocks_two
+100
+89
+place_bread_basket
+93
+91
+stack_bowls_three
+75
+70
+place_bread_skillet
+96
+78
+stack_bowls_two
+88
+77
+place_can_basket
+75
+67
+stamp_seal
+94
+65
+place_cans_plasticbox
+98
+93
+turn_switch
+77
+44
+20
+
+
+C
+Additional RoboDojo Executions
+Figures 6–11 present 25 additional successful executions of EffectWAM Large (26B), complementing the five
+examples in Fig. 4. The sequences follow RoboDojo’s capability grouping and include both standard and
+randomized clothing-folding tasks. Each row is a separate recorded episode; the selected frames preserve the
+initial state, intermediate interactions, and completion. Indices refer to zero-based source-video frames, with
+unequal intervals between the selected events. Blue-bordered details are taken from the outlined regions of
+the same frames.
+(a) Episode 0
+Fold clothes
+Execution order
+Initial layout
+frame 0
+First sleeve folded
+frame 112
+Both sleeves folded
+frame 208
+Fold the lower hem
+frame 264
+Folded garment
+frame 295
+(b) Episode 7
+Fold clothes
+Execution order
+Initial layout
+frame 0
+First sleeve folded
+frame 112
+Both sleeves folded
+frame 212
+Fold the lower hem
+frame 256
+Folded garment
+frame 292
+(c) Episode 10
+Fold clothes
+Execution order
+Initial layout
+frame 0
+First sleeve folded
+frame 112
+Both sleeves folded
+frame 212
+Fold the lower hem
+frame 264
+Folded garment
+frame 293
+(d) Episode 19
+Fold clothes
+Execution order
+Initial layout
+frame 0
+First sleeve folded
+frame 112
+Both sleeves folded
+frame 212
+Fold the lower hem
+frame 256
+Folded garment
+frame 293
+(e) Episode 24
+Fold clothes
+Execution order
+Initial layout
+frame 0
+First sleeve folded
+frame 112
+Both sleeves folded
+frame 212
+Fold the lower hem
+frame 264
+Folded garment
+frame 294
+Figure 6
+Additional Generalization executions on fold_clothes, episodes 0, 7, 10, 19, and 24. Across different
+garment appearances, the robot folds the sleeves inward before using both grippers to fold the lower hem. Intermediate
+frames show the two sleeve folds; the last column shows the released garment.
+21
+
+
+Generalization under scene variation.
+The randomized folding episodes change the garment pose and
+surrounding appearance while retaining the same folding objective. Figure 7 includes colored illumination,
+varied tabletop textures, and nearby objects. The grasp locations therefore change with the garment, while
+the sequence still proceeds through the two sleeve folds and the final fold of the lower hem.
+(a) Episode 5
+Fold clothes (randomized)
+Execution order
+Initial layout
+frame 0
+First sleeve folded
+frame 80
+Both sleeves folded
+frame 160
+Fold the lower hem
+frame 248
+Folded garment
+frame 303
+(b) Episode 7
+Fold clothes (randomized)
+Execution order
+Initial layout
+frame 0
+First sleeve folded
+frame 80
+Both sleeves folded
+frame 160
+Fold the lower hem
+frame 248
+Folded garment
+frame 315
+(c) Episode 13
+Fold clothes (randomized)
+Execution order
+Initial layout
+frame 0
+First sleeve folded
+frame 72
+Both sleeves folded
+frame 152
+Fold the lower hem
+frame 248
+Folded garment
+frame 294
+(d) Episode 21
+Fold clothes (randomized)
+Execution order
+Initial layout
+frame 0
+First sleeve folded
+frame 72
+Both sleeves folded
+frame 144
+Fold the lower hem
+frame 240
+Folded garment
+frame 302
+Figure 7 Additional Generalization executions on fold_clothes_random, episodes 5, 7, 13, and 21. The workspace
+crops retain the surrounding objects and visual conditions, rather than isolating the garment. Each row follows one
+episode in temporal order, with the final frame showing the fold after release.
+22
+
+
+Progress across repeated transfers. The bottle-disposal task requires all four bottles to reach the dustbin.
+The episodes in Fig. 8 vary the bottle shapes, positions, and initial poses. Bottles near the bin can be
+transferred directly, whereas bottles on the other side of the workspace are passed between grippers. The
+intermediate frames track this reduction in the remaining objects, including the handover of the final bottle
+before the workspace is cleared.
+(a) Episode 1
+Put bottles away
+Execution order
+Initial layout
+frame 0
+First bottle disposed
+frame 40
+Two bottles disposed
+frame 96
+Final handover
+frame 272
+Cleared workspace
+frame 317
+(b) Episode 30
+Put bottles away
+Execution order
+Initial layout
+frame 0
+First bottle disposed
+frame 40
+Two bottles disposed
+frame 112
+Final handover
+frame 296
+Cleared workspace
+frame 332
+(c) Episode 42
+Put bottles away
+Execution order
+Initial layout
+frame 0
+First bottle disposed
+frame 64
+Third-bottle handover
+frame 208
+Final handover
+frame 392
+Cleared workspace
+frame 432
+(d) Episode 47
+Put bottles away
+Execution order
+Initial layout
+frame 0
+Two bottles disposed
+frame 104
+Third bottle disposed
+frame 160
+Final handover
+frame 256
+Cleared workspace
+frame 293
+Figure 8 Additional Long-Horizon executions on put_bottles_into_dustbin, episodes 1, 30, 42, and 47. Event frames
+show disposal progress and inter-arm handovers. The terminal view shows the cleared tabletop after the four-bottle
+sequence; each row retains a fixed crop that includes the dustbin on the left.
+23
+
+
+Color order after occlusion. In Fig. 9, the initial color arrangements differ, but the robot first covers the
+blocks from left to right and subsequently reveals red, green, and blue in that order. The all-covered frame
+removes the visible color cues. Subsequent frames show the resulting spatially different uncovering sequences,
+making the dependence on the earlier color–position arrangement explicit. The detail windows use the same
+image region throughout each row so that the visible blocks and covered locations can be compared directly.
+(a) Episode 4
+Cover and reveal blocks
+Execution order
+Color layout
+frame 0
+All blocks covered
+frame 272
+Red revealed
+frame 360
+Green revealed
+frame 448
+Blue revealed
+frame 536
+(b) Episode 12
+Cover and reveal blocks
+Execution order
+Color layout
+frame 0
+All blocks covered
+frame 272
+Red revealed
+frame 368
+Green revealed
+frame 456
+Blue revealed
+frame 541
+(c) Episode 25
+Cover and reveal blocks
+Execution order
+Color layout
+frame 0
+All blocks covered
+frame 272
+Red revealed
+frame 360
+Green revealed
+frame 456
+Blue revealed
+frame 531
+(d) Episode 47
+Cover and reveal blocks
+Execution order
+Color layout
+frame 0
+All blocks covered
+frame 272
+Red revealed
+frame 360
+Green revealed
+frame 448
+Blue revealed
+frame 535
+Figure 9 Additional Memory executions on cover_blocks, episodes 4, 12, 25, and 47. Columns show the initial colors,
+complete occlusion, and the states after revealing red, green, and blue. The uncovering order follows color rather than
+a fixed left-to-right sweep; the final frame also shows the cups returned away from the blocks.
+24
+
+
+Alignment through tool contact. Figure 10 shows different initial ruler orientations and block offsets. The
+ruler provides a shared contact surface for bringing the blocks into line without picking them up individually.
+Episode 4 includes an additional adjustment from one end of the ruler, while the other three episodes reach
+the aligned configuration in a continuous pushing sequence. The enlarged terminal views make the final block
+arrangement easier to inspect.
+(a) Episode 4
+Align blocks
+Execution order
+Initial layout
+frame 0
+Grasp the ruler
+frame 32
+Push the blocks
+frame 64
+Adjust from one end
+frame 136
+Aligned blocks
+frame 155
+(b) Episode 6
+Align blocks
+Execution order
+Initial layout
+frame 0
+Grasp the ruler
+frame 32
+Push the blocks
+frame 48
+Complete the row
+frame 64
+Aligned blocks
+frame 88
+(c) Episode 12
+Align blocks
+Execution order
+Initial layout
+frame 0
+Grasp the ruler
+frame 32
+Push the blocks
+frame 48
+Complete the row
+frame 64
+Aligned blocks
+frame 86
+(d) Episode 49
+Align blocks
+Execution order
+Initial layout
+frame 0
+Grasp from the left
+frame 24
+Engage the other end
+frame 48
+Push into line
+frame 72
+Aligned blocks
+frame 93
+Figure 10 Additional Open executions on align_blocks, episodes 4, 6, 12, and 49. The event frames retain the
+initial arrangement, tool engagement, pushing or adjustment, and final alignment. Blue-bordered details magnify the
+terminal blocks and their relation to the ruler.
+25
+
+
+Building successive support layers. In Fig. 11, the arms place the four white supports individually and
+transport the horizontal platforms together. Their positions must support the next layer as the structure
+grows. The locations of the two top pieces also vary: the arm used for each of these final placements changes
+between the episodes. The selected intermediate states expose the completed lower platform, the upper
+supports, and the upper platform; the last frame shows the full tower after the grippers withdraw.
+(a) Episode 0
+Build a tower
+Execution order
+Initial layout
+frame 0
+Lower platform
+frame 264
+Upper supports
+frame 448
+Upper platform
+frame 536
+Tower complete
+frame 719
+(b) Episode 6
+Build a tower
+Execution order
+Initial layout
+frame 0
+Lower platform
+frame 264
+Upper supports
+frame 448
+Upper platform
+frame 536
+Tower complete
+frame 717
+(c) Episode 10
+Build a tower
+Execution order
+Initial layout
+frame 0
+Lower platform
+frame 272
+Upper supports
+frame 456
+Upper platform
+frame 544
+Tower complete
+frame 723
+(d) Episode 18
+Build a tower
+Execution order
+Initial layout
+frame 0
+Lower platform
+frame 264
+Upper supports
+frame 456
+Upper platform
+frame 536
+Tower complete
+frame 724
+Figure 11 Additional Precision executions on build_tower, episodes 0, 6, 10, and 18. Each sequence assembles four
+support blocks, two horizontal platforms, and two top pieces. The intermediate frames show successive support levels,
+and the final detail highlights the completed eight-piece structure.
+26

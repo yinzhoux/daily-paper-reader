@@ -1,0 +1,382 @@
+Title: ActField: Learning Action Effects as Continuous-Time Latent Dynamics
+
+URL Source: https://arxiv.org/pdf/2611.30659v1
+
+Published Time: Tue, 24 Nov 2026 05:32:32 GMT
+
+Number of Pages: 11
+
+Markdown Content:
+# ActField: Learning Action Effects as Continuous-Time Latent Dynamics 
+
+## Yunpeng Qing 1,∗ Yuheng Huang 1,∗ Changxu Wei 2 Yilun Kong 3
+
+## Yichen Shi 4 Shunyu Liu 3 Changqing Zou 1,51 Zhejiang University 2 Hong Kong Polytechnic University 
+
+3 Nanyang Technological University 4 University of the Chinese Academy of Sciences 5 Zhejiang Lab 
+
+> ∗
+
+Equal contribution. 
+
+## Abstract 
+
+Learning how actions change visual states is essential for prediction and decision-making in embodied tasks. Existing action-conditioned JEPA world models typically predict fu-ture representations at discrete observation intervals, leav-ing the temporal evolution of action effects implicit. We in-troduce ActField, a continuous-time JEPA world model that explicitly models latent state evolution through an action-conditioned vector field integrated over physical time. Act-Field separates action-independent evolution from action-induced changes, with the latter modulated by the latent context. A reference-conditioned representation and multi-step dynamics loss further support accurate long-horizon prediction. Together, these components provide a struc-tured and temporally continuous formulation for predicting action-conditioned visual dynamics. Experiments across LIBERO, DROID, and BEHAVIOR demonstrate improved visual prediction fidelity and more accurate action-induced motion prediction over existing world models. Further eval-uations on simulated and real-world manipulation tasks demonstrate the utility of ActField in improving downstream policy planning through VLM-guided action selection. 
+
+## 1. Introduction 
+
+Robotic manipulation [20, 24, 37] involves complex inter-actions between the embodied agent and its surrounding en-vironments. Predicting how these interactions change the environment [9, 10, 14] provides an effective means of as-sessing the downstream consequences of actions before ex-ecution. World models [8, 12, 19, 29] provide a foundation for this capability by learning how the environment evolves. For robotic manipulation, an effective world model must ac-curately capture action-conditioned dynamics, as different action sequences from the same observation can produce distinct robot motions, contacts, and object displacements. Recent advances in Joint-Embedding Predictive Archi-ActField (ours)   
+
+> Initial State
+> $$z_t$$ $$a_t$$
+> Predictor
+> $$z_{t+1}$$
+> Action-driven evolution
+> remains implicit
+> $$z_{\tau_t}$$ $$z_{\tau_{t+1}}$$
+> Latent Vector Field
+> Action effects
+> accumulate over time
+> $$a_{\tau_t}$$
+> $$\tau$$
+
+Toy Example: Push Cube 
+
+Discrete JEPA Error reduction (px)     
+
+> Action duration \(T\) (s)
+> Action amplitude  \(\alpha\)
+> Decoded images at final time \( T\)
+> Mismatched displacement Faithful displacement
+> Decoded
+> Prediction
+> Simulator
+> Ground truth
+> Prediction closely
+> matches Ground Truth
+
+Figure 1. Comparison of world model predictions in a controlled cube-pushing task. Starting from the same initial state, we com-pare the decoded predictions of Discrete JEPA and ActField at the final time T . The heatmap reports how much ActField reduces cube-displacement error relative to Discrete JEPA across varying action amplitudes and execution durations, with both errors mea-sured against the simulator outcome. 
+
+tectures (JEPA) [2, 7, 22] offer a promising approach to vi-sual world modeling by predicting target representations in latent space. Representative action-conditioned JEPA mod-els [27, 28, 40, 47] directly predict future visual representa-tions from observation context and actions, demonstrating utility for downstream planning. These models typically formulate latent dynamics as discrete transitions from the current context and the action executed over each observa-tion interval to the next representation, recursively applying the predictor to imagine rollouts under action sequences. We refer to this discrete-time latent prediction formulation as Discrete JEPA . Despite these promising results, this for-mulation leaves action-driven evolution within each transi-tion interval implicit. In particular, it does not explicitly 1arXiv:2611.30659v1 [cs.AI] 23 Nov 2026 represent how action-induced visual changes develop and accumulate during execution. We illustrate this limitation in a controlled lateral cube-pushing task in ManiSkill [30], varying action magnitude and execution duration from the same physical state. Figure 1 presents both a representative visual case study and quantitative measurements of cube displacement. Overlaying the final simulator configurations of the robot and block on the decoded prediction makes end-point discrepancies visible. Discrete JEPA exhibits a clear displacement mismatch in the visual example and fails to consistently track simulated block displacement across ac-tion magnitudes and execution durations. Together, these results suggest that leaving action-driven evolution implicit limits the model’s ability to predict action-dependent visual outcomes. This motivates a central question: 
+
+Can explicitly modeling action-driven latent evolution yield more faithful action-conditioned predictions? 
+
+In this paper, we propose ActField , an action-conditioned latent vector field model that predicts visual dynamics by accumulating local action-driven changes in latent space over time. ActField maps pretrained visual fea-tures into a compact dynamic embedding conditioned on a shared reference observation, then evolves it using a ve-locity field that takes the reference embedding, current dy-namic embedding, action, and physical time as inputs. We structure the field as f +Gψ (a), where f captures evolution independent of the action input and G transforms the action embedding ψ(a) according to the current latent context. In-tegrating the field over successive action intervals composes these local effects into future embeddings while allowing the action influence to vary with the evolving context and elapsed time. We jointly supervise the visual feature recon-struction and integrated dynamics to align the learned latent evolution with observed visual changes. As illustrated in Figure 1, the learned latent evolution more faithfully reflects the environment’s underlying physical dynamics, yielding decoded predictions that better match simulator outcomes than Discrete JEPA. For downstream decision-making, Act-Field predicts visual futures for candidate action sequences proposed by a behavior policy, and a vision-language model evaluates these predictions against the task instruction to select a sequence for execution. Experiments across sim-ulated and real-world manipulation tasks demonstrate con-sistent gains in both world-modeling accuracy and down-stream decision-making performance. Our main contributions are summarized as follows: • We identify implicit action-driven evolution as a key lim-itation of discrete-time action-conditioned JEPA models in faithfully capturing environment dynamics. • We introduce ActField , a structured action-conditioned latent vector field that explicitly models and integrates lo-cal action effects over physical time. • We show consistent gains in world-modeling accuracy and downstream decision-making through experiments across simulated and real-world manipulation tasks. 
+
+## 2. Related Work 
+
+2.1. Action-Conditioned Latent World Models 
+
+Action-conditioned world models predict the consequences of control actions to support planning and policy learn-ing [11, 39], with latent approaches learning compact dy-namics from visual observations [13, 42, 43]. Represen-tative approaches, Dreamer [14–16] learns policies from imagined trajectories generated by a latent world model, whereas TD-MPC [6, 17, 18] uses learned latent dynam-ics to optimize action sequences at inference time through model-predictive control. Joint-Embedding Predictive Ar-chitectures (JEPA) [4, 22, 31] learn predictive represen-tations by forecasting target embeddings rather than re-constructing pixels. DINO-WM [47] learns an action-conditioned predictor over frozen DINOv2 [35] features for latent-space planning. V-JEPA 2-AC [3] scales JEPA pretraining on large-scale video and adapts it to action-conditioned robot modeling, while LeWorldModel [28] sta-bilizes end-to-end pixel learning with a Sketched-Isotropic-Gaussian regularizer. Despite these advances, action-conditioned JEPAs directly predict future representations from current representations and actions, leaving the inter-vening action-driven evolution implicit. ActField instead models this evolution as an action-conditioned latent vector field integrated over physical time to obtain future represen-tations. 
+
+2.2. Continuous-Time Dynamics Modeling 
+
+Continuous-time models describe state evolution through learned differential equations [33, 34, 46]. Neural ODE [5] models continuous state evolution using a neural-network-parameterized differential equation, while Latent ODE [38] embeds this dynamics model into a latent-variable frame-work for modeling irregularly sampled time series. More recently, continuous-time formulations have shown promise for embodied world modeling. TAWM [32] conditions la-tent dynamics on transition duration and trains across mul-tiple temporal resolutions, enabling embodied prediction and control across varying observation frequencies. ODE-World [26] further models visual dynamics as a physical-time latent velocity field and obtains future representa-tions through numerical integration. However, existing continuous-time world models have not explicitly focused on modeling how control actions induce the evolution of vi-sual representations over physical time. ActField addresses this gap by learning an action-conditioned latent vector field that directly models this state evolution. 23. Preliminary 
+
+Action-Conditioned JEPA World Models. Action-conditioned JEPA world models predict the consequences of control actions directly in a latent visual represen-tation space, avoiding explicit reconstruction of future observations at the pixel level [3, 45, 47]. Given visual observations ot ∈ O and control actions at ∈ A , a visual encoder Φϕ maps each observation to a latent visual representation ht = Φ ϕ(ot). Rather than predicting future pixels, an action-conditioned predictor Fθ models the transition between latent representations conditioned on the executed action, ˆht+1 = Fθ (ht, a t). The predictor directly parameterizes the transition from the current latent representation to that of the subsequent observation. 
+
+LJEPA = E(ot,a t,o t+1 ) [D (Fθ (ht, a t), sg( ht+1 ))] , (1) where D(·, ·) denotes a feature-space prediction loss and 
+
+sg( ·) denotes stop-gradient on the target representation. For multi-step prediction, the learned transition model is recur-sively applied along an action sequence at:t+H−1 of hori-zon H, where each predicted latent representation serves as the input to the subsequent transition. This autoregres-sive rollout produces a sequence of future latent states with-out requiring a pixel-space decoder, providing the basis for latent-space prediction and planning. 
+
+## 4. Methodology 
+
+We introduce ActField , an action-conditioned JEPA world model that represents visual dynamics as a continuous-time latent vector field. As described in Sec. 3, conventional action-conditioned JEPA models directly predict the next timestep visual representation from the current representa-tion and control action. Our ActField instead introduces a compact reference-conditioned latent state and explicitly models how this state evolves under control actions over continuous physical time. Specifically, given a reference observation, a current observation, and an input action se-quence, ActField constructs a reference-conditioned latent state, explicitly models its local evolution with an action-conditioned vector field, and integrates the field over time to obtain future representations. The same dynamics can be recursively integrated over successive control action steps to produce longer-horizon visual predictions. An overview of ActField is shown in Figure 2. 
+
+4.1. Action-Conditioned Latent Flow Dynamics 
+
+Reference-Conditioned State Encoding. Following Sec. 3, let ot ∈ O denote the visual observation at timestep t. We first employ the DINOv2 [35] encoder 
+
+Φϕ : O → Rn×d to extract the patch-level visual rep-resentation ht = Φϕ(ot). The encoder remains frozen throughout ActField training, providing a fixed visual representation space for dynamics modeling. Building on this fixed representation space, we further introduce a reference-conditioned dynamic encoder to extract compact states tailored for temporal evolution. Specifically, given a reference observation or from the same trajectory, we obtain hr = Φϕ(or ) and use a dynamic encoder 
+
+Eω : Rn×d → Z to construct a compact reference-conditioned latent embedding: 
+
+zt = Eω (hr , h t). (2) We further define a fixed reference embedding zr =
+
+Eω (hr , h r ), which conditions the subsequent latent dynam-ics. The reference hr provides a shared visual context for the trajectory, such that the current state and its future pre-dictions are represented under the same reference condition. Rather than directly evolving the high-dimensional visual representation ht, our ActField performs dynamics model-ing in the compact latent space Z.Meanwhile, to project the compact dynamic embeddings back into the shared visual representation space and facili-tate downstream prediction evaluation, we further introduce a dynamic decoder Dκ parameterized with κ:
+
+˜ht = Dκ(hr , z t). (3) Together, the reference-conditioned encoder and decoder define a compact dynamic state space while maintaining correspondence with the pretrained visual representation space. Importantly, Dκ reconstructs visual representations rather than RGB pixels, keeping the world model entirely in the latent feature space. 
+
+Action-Conditioned Latent Velocity Field. To model how the latent embedding evolves under control actions, ActField treats z as a continuous-time variable. We use t
+
+to index discrete observation and control timesteps, while 
+
+τ denotes continuous physical time. ActField models the latent evolution through an ordinary differential equation: 
+
+dz(τ )dτ = vθ (zr , z (τ ), a (τ ), τ ) , (4) where vθ denotes our proposed action-conditioned latent vector field specifying the instantaneous rate of change of the latent embedding under the applied control signal a(τ ).To explicitly parameterize the contribution of action to the environment dynamics, we formulate the vector field as 
+
+vθ (zr , z, a, τ ) = fθf (zr , z, τ ) + GθG (zr , z, τ )ψθa (a), (5) where θ = {θf , θ G, θ a} denotes the parameters of the vec-tor field. fθf models the underlying latent evolution without explicit action influence, ψθa maps the input action to con-trol coefficients, and GθG specifies the latent directions and 3Reference  \(o_r\)    
+
+> Current
+> \(o_t\)
+> GT future
+> \(o_{t+k}\)
+> DINOv2
+> Encoder \(\Phi_\phi\)
+> \(h_r\)
+> \(h_t\)
+> \(h_{t+k}\)
+> Ref-conditioned State Encoder \(E_\omega\)
+> Ref-conditioned State Decoder \(D_\kappa\)
+> Reconstruction
+> ℒrec
+> ...
+> ...
+> ...
+> ...
+> ...
+> ...
+
+\(z_t\)  ...  
+
+> ...
+> ĥt
+> FiLM trunk
+> Base
+> \(f_{\theta}\)
+> Control
+> \(G_\theta\) \(\times \psi_\theta(a_\tau)\)
+
++\(z_r\)     
+
+> \(D_\kappa\)
+> \(h_r\)
+> ...
+> ...
+> DINOv2
+> Encoder \(\Phi_\phi\) \(E_\omega\)
+> \(h_r\)
+> \(\hat{z}_{t+k}\)
+> \(z^*_{t+k}\) Dynamics
+> ℒdyn
+> RGB
+> readout
+> ...
+> \(a_\tau\)
+> Action-conditioned Latent Velocity Field \(v_\theta\)
+
+\(z_\tau\)  
+
+> \(\text{FiLMMLP}([z_r; z_\tau] | e(\tau))\)
+> (a) Reference-conditioned representation & reconstruction
+> (b) Action-conditioned flow & prediction
+> Multi-step RK4
+> Latent Space \(\mathcal Z\)
+> Downstream Best-of-N Planning
+> End-to-End Policy Sampling
+> VLM Scorer
+> Planned Action
+
+Figure 2. An illustrative diagram of our proposed ActField .
+
+state-dependent influence associated with each control com-ponent. Their product GθG ψθa (a) therefore represents the action-induced contribution to the local latent velocity. This formulation explicitly parameterizes how actions affect the local latent dynamics, while future representations are ob-tained by integrating these dynamics over time rather than predicted directly. We implement fθf and GθG as separate heads on a shared MLP trunk, where FiLM [36] modulates features of [zr ; z] using a time embedding of τ . We also use a bias-free linear mapping for ψθa . For a fixed latent em-bedding and time, the action-dependent velocity therefore changes linearly with the encoded action. 
+
+Physical-Time Integration and Multi-Step Rollout. 
+
+Given the action-conditioned vector field, ActField predicts future latent embeddings by integrating the continuous-time dynamics over corresponding physical time. For an action sequence at:t+H−1 = ( at, . . . , a t+H−1), we assume zero-order hold and define the control signal as: 
+
+a(τ ) = at+h, τ ∈ [τt+h, τ t+h+1 ), h = 0 , . . . , H −1.
+
+(6) Starting from the current latent embedding zt, ActField obtains the corresponding future embedding prediction at horizon H by integrating the learned vector field over the corresponding physical duration: 
+
+ˆzt+H = zt +
+
+Z τt+H
+
+> τt
+
+vθ (zr , z (τ ), a (τ ), τ ) d τ. (7) We solve Eq. 7 using a differentiable Runge–Kutta integra-tor throughout training and inference. During numerical integration, the vector field is repeatedly evaluated at in-termediate latent embeddings generated along the predicted trajectory, without requiring explicit supervision on these intermediate states. Thus, future representations are pro-duced by temporally composing local action-conditioned dynamics, rather than directly predicting the overall tran-sition from the current observation to a future one. The pre-dicted latent embedding is mapped back to the shared visual representation space through Dκ:
+
+ˆht+h = Dκ(hr , ˆzt+h), (8) This yields a sequence of future visual representations con-ditioned on the prescribed action sequence. 
+
+4.2. Representation and Dynamics Objectives 
+
+In this section, we formulate the representation and dynam-ics objectives used to jointly train the ActField world model. Let D = {(or , o t, a t, o t+1 )} denote the transition dataset. 
+
+Representation Objective. Since ActField models dy-namics in the compact latent space Z, we require the latent embeddings to remain grounded in the fixed pretrained vi-sual representation space. Given a reference observation or
+
+and a current observation ot, we obtain hr = Φ ϕ(or ) and 
+
+ht = Φ ϕ(ot) using the frozen DINOv2 visual encoder. The dynamic encoder Eω constructs the reference-conditioned latent embedding zt = Eω (hr , h t), which is decoded back to the visual feature space through Dκ. We therefore im-pose the following reconstruction objective 
+
+Lrec (ω, κ ) = ED ∥Dκ(hr , z t) − ht∥22 . (9) 4This objective encourages the compact latent embedding to retain the essential visual content of the current observation and organize it in a form that can be decoded to reconstruct the corresponding pretrained visual representation. Since 
+
+Φϕ remains frozen, ht provides a fixed feature-space target that anchors the evolving latent representation during dy-namics learning. The dynamic encoder Eω and decoder Dκ
+
+are optimized jointly with the action-conditioned velocity field, allowing the latent representation and the learned dy-namics to co-adapt during training. 
+
+Dynamics Objective. We learn the action-conditioned velocity field vθ from trajectory segments 
+
+(or , o t, a t:t+h−1, o t+h) over multiple rollout horizons h.For each horizon, we encode the future visual represen-tation ht+h = Φϕ(ot+h) under the same reference hr
+
+to construct the latent target: z⋆t+h = sg [ Eω (hr , h t+h)] .Using the same reference hr places the embedding zt and target z⋆t+h in a shared reference-conditioned latent space. Starting from zt, we obtain the predicted endpoint ˆzt+h
+
+by integrating vθ over the next h action intervals according to Eq. 7. The integration follows the observed action se-quence at:t+h−1, with a(τ ) = at+j for τ ∈ [τt+j , τ t+j+1 )
+
+and j = 0 , . . . , h − 1. Rather than directly supervising the instantaneous latent velocity, we match the integrated latent displacement to the observed displacement: 
+
+L(h)dyn (θ) = ED
+
+Z τt+h
+
+> τt
+
+vθ (zr , ˆz(τ ), a (τ ), τ ) d τ −  z⋆t+h −zt
+
+ 22
+
+,
+
+(10) where ˆz(τ ) is the predicted latent trajectory with ˆz(τt) = 
+
+zt. We optimize vθ through differentiable integration [5], averaging endpoint losses over horizons H = {1, 2, 4, 8}:
+
+Ldyn = 1
+
+|H| 
+
+X
+
+> h∈H
+
+L(h)dyn . (11) The complete ActField training objective is 
+
+LActField = Lrec + Ldyn (12) During training, the visual encoder Φϕ remains frozen, while the dynamic encoder Eω , dynamic decoder Dκ, ac-tion mapping ψθa , and velocity-field components fθf and 
+
+GθG are jointly optimized. The stop-gradient in latent tar-get computation is applied only to the future target branch, while the current embedding zt remains differentiable and receives gradients from both the representation and dynam-ics objectives. Overall, ActField learns from observed vi-sual transitions and their associated control actions with-out requiring instantaneous latent-velocity labels or inter-mediate trajectory annotations. The resulting local dynam-ics can subsequently be composed over longer action se-quences through physical-time integration. 
+
+## 5. Experiments 
+
+To evaluate the effectiveness of ActField, we conduct ex-periments across multiple embodied benchmarks as well as real-world robotic tasks. Our evaluation seeks to an-swer the following questions: (1) Does ActField predict future visual observations more accurately than baseline world models over short and long horizons? (Sections 5.2 and 5.4) (2) How accurately does ActField predict action-induced motion? (Sections 5.2, 5.3, and 5.4) (3) Can Act-Field improve a fixed behavior policy’s task success through VLM-guided action selection? (Section 5.2) (4) How do ActField’s architectural components and training objectives contribute to its predictive performance? (Section 5.3) 
+
+5.1. Experimental Setup 
+
+We evaluate ActField on three benchmarks: LIBERO [25], DROID [21], and BEHAVIOR [23]. We further assess its utility for action selection on two real-world manip-ulation tasks. We compare ActField with representative JEPA-based world models, including DINO-WM [47] and LeWM [28]. Since these methods were originally evalu-ated under different experimental settings, we run all base-lines using their official implementations under a common evaluation protocol. Further implementation and evaluation details are provided in Appendix A. 
+
+5.2. Main Results 
+
+Predictive fidelity. We evaluate visual prediction accu-racy over short- and long-horizon open-loop rollouts, where each model recursively predicts future representations from an initial observation and action sequence without access to subsequent ground-truth observations. We decode the pre-dicted representations into RGB images using a pretrained DINOv2 decoder and evaluate their fidelity against the cor-responding ground-truth frames using LPIPS [44], PSNR, and SSIM [41]. Table 1 reports the results at H = 16 and 
+
+H = 64 . ActField consistently outperforms the baselines across all reported metrics and benchmarks, demonstrating its ability to maintain accurate and perceptually faithful vi-sual predictions over extended horizons. 
+
+Physical dynamics probing. Visual fidelity alone does not indicate whether predicted representations accurately capture underlying action-induced physical dynamics. We train a separate MLP End-EFfector (EEF) probe for each model using its ground-truth observation features, with matched architectures and training budgets, and evalu-ate the frozen probes on predicted features. Specifically, let ˆpt+h and pt+h denote the predicted and ground-truth EEF positions at step t + h, respectively. We mea-sure trajectory accuracy using Average Displacement Er-ror ADE H = mean h ∥ˆpt+h − pt+h∥2 and Final Displace-5Table 1. Visual prediction quality of our ActField and other compared baselines at rollout horizons H = 16 and H = 64 . All results use the 40,000-update checkpoint. Best and second-best results are marked in bold and underlined, respectively.                                                                     
+
+> Horizon Method LIBERO [25] DROID [21] BEHAVIOR [23] LPIPS ↓PSNR ↑SSIM ↑LPIPS ↓PSNR ↑SSIM ↑LPIPS ↓PSNR ↑SSIM ↑
+> H= 16
+> DINO-WM [47] 0.0530 26 .399 0.8898 0.0639 24 .341 0.8607 0.1852 20 .627 0.6424
+> LeWorldModel [28] 0.5580 11 .781 0.4866 0.5708 10 .680 0.3564 0.4833 11 .559 0.3990
+> ActField 0.0395 27 .769 0.9099 0.0580 24 .659 0.8706 0.1701 20 .632 0.6523
+> H= 64
+> DINO-WM [47] 0.1262 21 .376 0.8150 0.1197 21 .027 0.8001 0.2800 18 .088 0.5855
+> LeWorldModel [28] 0.5666 11 .159 0.4650 0.5675 10 .594 0.3489 0.4826 11 .733 0.3987
+> ActField 0.0611 24 .558 0.8758 0.0786 22 .422 0.8437 0.2580 18 .375 0.5939
+
+ment Error FDE H = ∥ˆpt+H − pt+H ∥2. As shown in Fig-ures 3a and 3b, ActField consistently achieves lower errors across prediction horizons. We further assess the magnitude and direction of predicted spatial EEF motion. Defining 
+
+d∆pH = ˆ pt+H − pt and ∆pH = pt+H − pt, we com-pute the magnitude ratio ρH = ∥d∆pH ∥2/∥∆pH ∥2 and di-rectional similarity sdir  
+
+> H
+
+= cos( d∆pH , ∆pH ). Figures 3c and 3d show that ActField produces magnitude ratios more concentrated around 1 and directional similarities closer to 1, indicating more accurate predictions of both motion mag-nitude and direction. Together, these results demonstrate that ActField accurately preserves physically meaningful action-conditioned dynamics beyond visual fidelity. 
+
+Task-level policy enhancement. We further evaluate whether ActField’s predictive capabilities translate into im-proved downstream task performance. Following Alza-yer et al. [1], we adopt a VLM-guided best-of-N action-selection scheme. At each decision step, a fixed stochas-tic behavior policy samples N candidate action sequences, which are independently rolled out by each world model to predict future visual trajectories. A shared Astra VLM scorer evaluates the predicted trajectories against the task instruction and selects the highest-scoring candidate for ex-ecution. All methods use the same behavior policy, candi-date budget, and VLM scorer, ensuring a controlled com-parison of their decision utility. Further details of the infer-ence procedure and its configurations are provided in Ap-pendix A. Tables 2a and 2b report per-task and average success rates on LIBERO-10 and real-world manipulation tasks, respectively. On LIBERO-10, ActField-guided ac-tion selection consistently improves upon the base policy and outperforms alternative world models. The improve-ments also extend to real-world manipulation, demonstrat-ing the practical utility of ActField for VLM-guided action selection beyond simulation. 
+
+5.3. Ablation Studies 
+
+Training objectives. We investigate the individual and combined contributions of feature reconstruction and the multi-step dynamics loss to predictive performance. As shown in the right panel of Figure 4, replacing the multi-step dynamics loss with single-step endpoint supervi-sion (Single Step) leads to a reduction in PSNR, indicat-ing that one-step prediction alone is insufficient to main-tain accuracy over recursive rollouts. This highlights the importance of supervising the integrated dynamics across multiple prediction horizons to mitigate error accumulation during long-horizon prediction. Removing the feature re-construction loss also degrades performance, highlighting its role in anchoring predicted dynamic embeddings to the frozen visual representation space. By constraining the inte-grated predictions in the shared visual feature space, this ob-jective helps preserve visual consistency throughout latent evolution. The full model achieves the best performance, demonstrating that multi-step dynamics learning and fea-ture reconstruction provide complementary benefits for ac-curate and visually consistent long-horizon prediction. 
+
+Dynamics parameterization. We investigate the benefits of the structured f + Gψ parameterization from both vi-sual prediction and action-effect estimation perspectives. We compare ActField with two alternative dynamics for-mulations. Discrete JEPA directly predicts the next latent representation from the current representation and action, while Joint Field parameterizes the complete latent veloc-ity using a single action-conditioned network without the decomposition in Eq. 5. As shown in the left panel of Figure 4, Joint Field achieves higher PSNR than Discrete JEPA, highlighting the advantage of continuous-time latent dynamics over discrete transitions. ActField further im-proves PSNR, demonstrating the benefit of explicitly sep-arating autonomous and action-induced components in the vector field. Beyond visual prediction, we examine whether this decomposition improves the representation of action-6DINO-WM LeWM ActField 16 32 64 128 
+
+> Prediction horizon H (steps)
+> 0100 200
+> ADE (mm)
+
+(a) ADE over horizons. 16 32 64 128  
+
+> Prediction horizon H (steps)
+> 0100 200 300 400
+> FDE (mm)
+
+(b) FDE over horizons. 0.1 1 10 100    
+
+> Magnitude ratio ρ(H=16)
+> 024
+> Density
+
+(c) Magnitude ratio density. −1.0 −0.5 0.0 0.5 1.0  
+
+> Direction cosine (H=16)
+> 0510 15
+> Density
+
+(d) Directional similarity density. 
+
+Figure 3. Physical motion from latent dynamics on LIBERO. (a) Average Displacement Error (ADE) and (b) Final Displacement Er-ror (FDE) across horizons. (c) Displacement magnitude ratios and (d) Directional cosine similarities. Table 2. Task success rates (%) with VLM-guided best-of-N action selection on (a) LIBERO-10 and (b) real-world manipulation tasks. All methods use the same behavior policy, candidate budget, and frozen VLM scorer. Results are based on 100 trials per task for LIBERO-10 and 20 trials per task for real-world manipulation. More details can be found in Appendix A. 
+
+(a) LIBERO-10. 
+
+Rollout Model Tasks Avg. T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 None (Base Policy) 89 73 94 75 75 95 68 86 34 28 71.7 DINO-WM 89 76 92 70 79 94 62 88 27 18 69.5 LeWorldModel 82 64 84 62 66 90 53 78 19 12 61.0 ActField (Ours) 94 83 93 84 84 97 79 92 47 39 79.2 
+
+(b) Real-world Tasks. 
+
+Rollout Model Stack All Put Cubes Avg. Plates into Bucket None (Base) 60 55 57.5 DINO-WM 60 50 55.0 LeWorldModel 50 45 47.5 ActField (Ours) 70 60 65.0 Discrete JEPA Joint Field ActField (Ours)    
+
+> 23 24 25
+> PSNR (dB) ↑ 816 32 64
+> Horizon H (steps)
+> 0.50 0.75 1.00
+> cosine
+> ActField Joint Field Discrete JEPA w/o Feat. Recon. Single-Step ActField (Ours)
+> 20 22 24
+> PSNR (dB) ↑
+
+Figure 4. Ablation studies on LIBERO. Left: Different dynamics parameterizations. Middle: Action-effect cosine across prediction horizons. Right: Contributions of feature reconstruction and multi-step dynamic loss at H = 64 .Table 3. Effect of reference conditioning on visual prediction qual-ity. LPIPS ( ↓) at H = 64 across three benchmarks. Method LIBERO DROID BEHAVIOR Avg. w/o Reference 0.1083 0.1577 0.3697 0.2119 ActField (Ours) 0.0611 0.0786 0.2580 0.1326 
+
+induced physical effects. We estimate object displacements from predicted latent changes and measure their cosine sim-ilarity with the corresponding simulator displacements. As shown in the middle panel of Figure 4, ActField achieves higher cosine similarity than Joint Field, with a more pro-nounced advantage at longer prediction horizons. This in-dicates that the structured parameterization better preserves the physical information of action-induced effects during long-horizon prediction, supporting the effectiveness of ex-plicitly modeling action contributions through G.
+
+Reference conditioning. We further examine the role of reference conditioning by removing the reference observa-tion from both the dynamics encoder and decoder. As re-ported in Table 3, removing reference conditioning consis-tently increases LPIPS across LIBERO, DROID, and BE-HAVIOR, with the average LPIPS increasing from 0.1326 to 0.2119. This degradation suggests that conditioning on a reference observation provides a stable representation of scene-specific visual context, allowing the dynamic em-beddings to focus on task-specific action-induced changes rather than repeatedly encoding static scene information. The reference therefore serves as a shared visual anchor for both latent dynamics modeling and feature reconstruc-tion, improving the consistency of predicted representations over long-horizon rollouts. These results highlight the im-portance of reference conditioning in learning accurate and visually consistent latent dynamics across diverse environ-ments. Further ablation results are provided in Appendix B. 7GT 
+
+> ActField
+> DINO-WM LeWM step 1 0.05 s step 10 0.50 s step 19 0.95 s step 28 1.40 s step 37 1.85 s step 46 2.30 s step 55 2.75 s step 64 3.20 s
+> TIME
+
+Figure 5. 64-step visual rollouts on LIBERO. Ground truth (GT) denotes simulator observations obtained by executing the action sequence. The remaining rows show decoded model predictions conditioned on the same initial observation and actions. DINO-WM LeWM ActField DINO-WM LeWM ActField     
+
+> 064 Prediction timestep
+> GT Prediction Start GT H64 Pred H64
+
+Figure 6. PCA projections of 64-step latent rollout trajectories. The top and bottom rows show two representative manipulation tasks from LIBERO-Goal: push the plate to the front of the stove 
+
+and put the bowl on the plate , respectively. 
+
+5.4. Visualization 
+
+To further examine the predicted dynamics, we visualize decoded observations, latent feature trajectories, and end-effector motion over 64-step open-loop rollouts. Figure 5 compares decoded predictions with ground-truth observa-tions at selected timesteps. ActField better preserves vi-sual details and follows the evolving robot poses throughout the rollout, while DINO-WM and LeWorldModel exhibit GT DINO-WM LeWM ActField x (m) y (m) z (m) x (m) y (m) z (m) x (m) y (m) z (m) 
+
+Figure 7. Probed end-effector trajectories over 64 rollout steps. We compare predicted 3D trajectories with ground truth on three LIBERO manipulation tasks. The task instructions are, from left to right, put the bowl on the plate , put the alphabet soup and tomato sauce in the basket , and put the moka pot on the stove .
+
+more noticeable deviations. Figure 6 compares PCA pro-jections of latent rollout trajectories with ground-truth fea-ture evolution on two LIBERO-Goal tasks. ActField more closely follows the ground-truth trajectories in both tasks, whereas the baselines exhibit larger deviations in trajectory shapes and endpoints. Finally, Figure 7 shows the 3D end-effector trajectories decoded from predicted latent features using an MLP probe. Across three manipulation tasks, Act-Field better preserves the spatial paths and final positions of the ground-truth trajectories. Together, these visualizations demonstrate that ActField better captures visual, latent, and physical dynamics over extended rollouts. More visualiza-tion results are provided in Appendix C. 86. Conclusion 
+
+In this work, we propose ActField , a continuous-time JEPA world model that explicitly models action effects through a latent vector field integrated over physical time. By decom-posing latent dynamics into autonomous and action-induced components, ActField captures how control actions shape latent state evolution. A reference-conditioned represen-tation and multi-step dynamics loss further support accu-rate long-horizon prediction. Experiments across LIBERO, DROID, and BEHAVIOR demonstrate improved visual pre-diction fidelity over existing world models, while physi-cal dynamics probing and ablation studies validate the pro-posed design. Furthermore, evaluations on VLM-guided action selection in simulation and real-world manipulation demonstrate the practical utility of ActField for predictive decision-making in embodied systems. 
+
+## LLM Usage Statement 
+
+We used GPT-6 to assist with software programming and manuscript language polishing and editing. We also used Astra as a VLM scorer to evaluate candidate trajecto-ries against task instructions in our action-selection experi-ments. These models were not used for research idea gen-eration or experimental data synthesis. All AI-assisted text was reviewed and revised by the authors, and all AI-assisted code was inspected and tested for correctness. The au-thors take full responsibility for the final content of this work. 
+
+## References 
+
+[1] Hadi Alzayer, Wenlong Huang, Haonan Chen, Christo-pher Luey, Lvmin Zhang, Maneesh Agrawala, Gordon Wet-zstein, Li Fei-Fei, Yilun Du, Jiajun Wu, et al. Masked visual actions for unified world modeling. arXiv preprint arXiv:2607.19343 , 2026. 6 [2] Mahmoud Assran, Quentin Duval, Ishan Misra, Piotr Bo-janowski, Pascal Vincent, Michael Rabbat, Yann LeCun, and Nicolas Ballas. Self-supervised learning from images with a joint-embedding predictive architecture. In 2023 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 15619–15629. IEEE, 2023. 1 [3] Mido Assran, Adrien Bardes, David Fan, Quentin Garrido, Russell Howes, Matthew Muckley, Ammar Rizvi, Claire Roberts, Koustuv Sinha, Artem Zholus, et al. V-jepa 2: Self-supervised video models enable understanding, prediction and planning. arXiv preprint arXiv:2506.09985 , 2025. 2, 3[4] Delong Chen, Mustafa Shukor, Theo Moutakanni, Willy Chung, Lei Yu, Tejaswi Kasarla, Allen Bolourchi, Yann Le-Cun, and Pascale Fung. Vl-jepa: Joint embedding predic-tive architecture for vision-language. In International Con-ference on Learning Representations , pages 89791–89807, 2026. 2 [5] Ricky TQ Chen, Yulia Rubanova, Jesse Bettencourt, and David K Duvenaud. Neural ordinary differential equa-tions. Advances in neural information processing systems ,31, 2018. 2, 5 [6] Rohan Chitnis, Yingchen Xu, Bobak Hashemi, Lucas Lehn-ert, Urun Dogan, Zheqing Zhu, and Olivier Delalleau. Iql-td-mpc: Implicit q-learning for hierarchical model predictive control. In 2024 IEEE International Conference on Robotics and Automation (ICRA) , pages 9154–9160. IEEE, 2024. 2 [7] Jingyi Cui, Qi Zhang, Hongwei Wen, Letian Cheng, and Yisen Wang. A generalization theory for jepa-based world models. arXiv preprint arXiv:2606.27014 , 2026. 1 [8] Jingtao Ding, Yunke Zhang, Yu Shang, Yuheng Zhang, Ze-fang Zong, Jie Feng, Yuan Yuan, Hongyuan Su, Nian Li, Nicholas Sukiennik, et al. Understanding world or predict-ing future? a comprehensive survey of world models. ACM Computing Surveys , 58(3):1–38, 2025. 1 [9] Chelsea Finn and Sergey Levine. Deep visual foresight for planning robot motion. In 2017 IEEE international confer-ence on robotics and automation (ICRA) , pages 2786–2793. IEEE, 2017. 1 [10] Chelsea Finn, Ian Goodfellow, and Sergey Levine. Unsuper-vised learning for physical interaction through video predic-tion. Advances in neural information processing systems , 29, 2016. 1 [11] Yanjiang Guo, Lucy Shi, Jianyu Chen, and Chelsea Finn. Ctrl-world: A controllable generative world model for robot manipulation. In International Conference on Learning Rep-resentations , pages 6121–6138, 2026. 2 [12] David Ha and J¨ urgen Schmidhuber. Recurrent world models facilitate policy evolution. Advances in neural information processing systems , 31, 2018. 1 [13] Danijar Hafner, Timothy Lillicrap, Ian Fischer, Ruben Ville-gas, David Ha, Honglak Lee, and James Davidson. Learning latent dynamics for planning from pixels. In International conference on machine learning , pages 2555–2565. PMLR, 2019. 2 [14] Danijar Hafner, Timothy Lillicrap, Mohammad Norouzi, and Jimmy Ba. Mastering atari with discrete world models. arXiv preprint arXiv:2010.02193 , 2020. 1, 2 [15] Danijar Hafner, Jurgis Pasukonis, Jimmy Ba, and Timothy Lillicrap. Mastering diverse domains through world models. 
+
+arXiv preprint arXiv:2301.04104 , 2023. [16] Danijar Hafner, Jurgis Pasukonis, Jimmy Ba, and Timothy Lillicrap. Mastering diverse control tasks through world models. Nature , 640(8059):647–653, 2025. 2 [17] Nicklas Hansen, Xiaolong Wang, and Hao Su. Temporal dif-ference learning for model predictive control. arXiv preprint arXiv:2203.04955 , 2022. 2 [18] Nick Hansen, Hao Su, and Xiaolong Wang. Td-mpc2: Scal-able, robust world models for continuous control. In In-ternational Conference on Learning Representations , pages 47376–47405, 2024. 2 [19] Bohan Hou, Gen Li, Jindou Jia, Tuo An, Xinying Guo, Sicong Leng, Haoran Geng, Yanjie Ze, Tatsuya Harada, Philip Torr, et al. World model for robot learning: A com-prehensive survey. The International Journal of Robotics Re-search , page 02783649261488980, 2026. 1 
+
+9[20] Physical Intelligence, Kevin Black, Noah Brown, James Darpinian, Karan Dhabalia, Danny Driess, Adnan Esmail, Michael Equi, Chelsea Finn, Niccolo Fusai, et al. π0.5: A vision-language-action model with open-world generaliza-tion. arXiv preprint arXiv:2504.16054 , 2025. 1 [21] Alexander Khazatsky, Karl Pertsch, Suraj Nair, Ash-win Balakrishna, Sudeep Dasari, Siddharth Karamcheti, Soroush Nasiriany, Mohan Kumar Srirama, Lawrence Yun-liang Chen, Kirsty Ellis, et al. Droid: A large-scale in-the-wild robot manipulation dataset. arXiv preprint arXiv:2403.12945 , 2024. 5, 6 [22] Yann LeCun et al. A path towards autonomous machine in-telligence version 0.9. 2, 2022-06-27. Open Review , 62(1): 1–62, 2022. 1, 2 [23] Chengshu Li, Ruohan Zhang, Josiah Wong, Cem Gokmen, Sanjana Srivastava, Roberto Mart´ ın-Mart´ ın, Chen Wang, Gabrael Levine, Michael Lingelbach, Jiankai Sun, et al. Behavior-1k: A benchmark for embodied ai with 1,000 ev-eryday activities and realistic simulation. In Conference on Robot Learning , pages 80–93. PMLR, 2023. 5, 6 [24] Sixu Lin, Yunpeng Qing, Litao Liu, Ming Zhou, Ruixing Jin, Xiaoyi Fan, and Guiliang Liu. Dygro-vla: Cross-task scal-ing of vision-language-action models via dynamic grouped residual optimization. arXiv preprint arXiv:2605.17486 ,2026. 1 [25] Bo Liu, Yifeng Zhu, Chongkai Gao, Yihao Feng, Qiang Liu, Yuke Zhu, and Peter Stone. Libero: Benchmarking knowl-edge transfer for lifelong robot learning. Advances in Neural Information Processing Systems , 36:44776–44791, 2023. 5, 6[26] Dongxiu Liu, Haoyi Niu, Peng Cheng, Yuan Gao, Xirui Kang, Sangli Teng, Koushil Sreenath, and Xianyuan Zhan. Odeworld: A continuous predictive architecture via physical-time flow. arXiv preprint arXiv:2607.27924 , 2026. 2[27] Muyuan Liu, Yue Huang, Zheng Liang, and Xiang Gao. Toward physically grounded jepa world models for goal-conditioned robotic planning. arXiv preprint arXiv:2609.03565 , 2026. 1 [28] Lucas Maes, Quentin Le Lidec, Damien Scieur, Yann Le-Cun, and Randall Balestriero. Leworldmodel: Stable end-to-end joint-embedding predictive architecture from pixels. 
+
+arXiv preprint arXiv:2603.19312 , 2026. 1, 2, 5, 6 [29] Yutaka Matsuo, Yann LeCun, Maneesh Sahani, Doina Pre-cup, David Silver, Masashi Sugiyama, Eiji Uchibe, and Jun Morimoto. Deep learning, reinforcement learning, and world models. Neural networks , 152:267–275, 2022. 1 [30] Tongzhou Mu, Zhan Ling, Fanbo Xiang, Derek Yang, Xu-anlin Li, Stone Tao, Zhiao Huang, Zhiwei Jia, and Hao Su. Maniskill: Generalizable manipulation skill bench-mark with large-scale demonstrations. arXiv preprint arXiv:2107.14483 , 2021. 2 [31] Lorenzo Mur-Labadia, Matthew Muckley, Amir Bar, Mido Assran, Koustuv Sinha, Mike Rabbat, Yann LeCun, and Nicolas Ballas. V-jepa 2.1: Unlocking dense features in video self-supervised learning. In European Conference on Computer Vision , pages 671–689. Springer, 2026. 2 [32] Anh N Nhu, Sanghyun Son, and Ming Lin. Time-aware world model for adaptive prediction and control. arXiv preprint arXiv:2506.08441 , 2025. 2 [33] YongKyung Oh, Dongyoung Lim, and Sungil Kim. Stable neural stochastic differential equations in analyzing irregular time series data. In International Conference on Learning Representations , pages 38231–38262, 2024. 2 [34] YongKyung Oh, Seungsu Kam, Jonghun Lee, Dong-Young Lim, Sungil Kim, and Alex Bui. Comprehensive review of neural differential equations for time series analysis. arXiv preprint arXiv:2502.09885 , 2025. 2 [35] Maxime Oquab, Timoth´ ee Darcet, Th´ eo Moutakanni, Huy Vo, Marc Szafraniec, Vasil Khalidov, Pierre Fernandez, Daniel Haziza, Francisco Massa, Alaaeldin El-Nouby, et al. Dinov2: Learning robust visual features without supervision. 
+
+arXiv preprint arXiv:2304.07193 , 2023. 2, 3 [36] Ethan Perez, Florian Strub, Harm De Vries, Vincent Du-moulin, and Aaron Courville. Film: Visual reasoning with a general conditioning layer. In Proceedings of the AAAI con-ference on artificial intelligence , 2018. 4 [37] Yunpeng Qing, Yilun Kong, Sixu Lin, Ming Zhou, Yim-ing Fei, Shuang Luo, Yixiao Chi, Haoming Gu, Jingyuan Liu, Changxu Wei, et al. Pf-rl: Progress field reinforcement learning via goal-conditioned value geometry for vision-language-action models. arXiv preprint arXiv:2609.32634 ,2026. 1 [38] Yulia Rubanova, Ricky TQ Chen, and David K Duve-naud. Latent ordinary differential equations for irregularly-sampled time series. Advances in neural information pro-cessing systems , 32, 2019. 2 [39] Ramanan Sekar, Oleh Rybkin, Kostas Daniilidis, Pieter Abbeel, Danijar Hafner, and Deepak Pathak. Planning to explore via self-supervised world models. In International conference on machine learning , pages 8583–8592. PMLR, 2020. 2 [40] Ziying Song, Shengkai Zhang, Caiyan Jia, Lei Yang, Lin Liu, Yuchen Liu, Ziyang Liu, Zirui Li, Gang Wang, Peiliang Wu, et al. Actworld-jepa: Action-conditioned jepa world models meet latent planning for end-to-end autonomous driving. arXiv preprint arXiv:2611.16579 , 2026. 1 [41] Zhou Wang, Alan C Bovik, Hamid R Sheikh, and Eero P Si-moncelli. Image quality assessment: from error visibility to structural similarity. IEEE transactions on image processing ,13(4):600–612, 2004. 5 [42] Manuel Watter, Jost Springenberg, Joschka Boedecker, and Martin Riedmiller. Embed to control: A locally linear latent dynamics model for control from raw images. Advances in neural information processing systems , 28, 2015. 2 [43] Marvin Zhang, Sharad Vikram, Laura Smith, Pieter Abbeel, Matthew Johnson, and Sergey Levine. Solar: Deep struc-tured representations for model-based reinforcement learn-ing. In International conference on machine learning , pages 7444–7453. PMLR, 2019. 2 [44] Richard Zhang, Phillip Isola, Alexei A Efros, Eli Shechtman, and Oliver Wang. The unreasonable effectiveness of deep features as a perceptual metric. In 2018 IEEE/CVF confer-ence on computer vision and pattern recognition , pages 586– 595. IEEE, 2018. 5 
+
+10 [45] Wancong Zhang, Basile Terver, Michael Rabbat, Yann Le-Cun, and Randall Balestriero. H-jepa: End-to-end learn-ing of hierarchical world models for visual planning. arXiv preprint arXiv:2610.06805 , 2026. 3 [46] Yudong Zhang, Xu Wang, Xuan Yu, Zhengyang Zhou, Xing Xu, Lei Bai, and Yang Wang. Diffode: Neural ode with dif-ferentiable hidden state for irregular time series analysis. In 
+
+2025 IEEE 41st international conference on data engineer-ing (ICDE) , pages 1–14. IEEE, 2025. 2 [47] Gaoyue Zhou, Hengkai Pan, Yann LeCun, and Lerrel Pinto. Dino-wm: World models on pre-trained visual features en-able zero-shot planning. arXiv preprint arXiv:2411.04983 ,2024. 1, 2, 3, 5, 6 
+
+11

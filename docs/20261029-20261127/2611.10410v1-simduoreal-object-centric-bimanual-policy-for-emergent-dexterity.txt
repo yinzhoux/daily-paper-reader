@@ -1,0 +1,1129 @@
+SimDuoReal: Object-Centric Bimanual Policy for Emergent Dexterity
+Qiyang Yan1, Yulin Liu1,2, Akash Sharma1, Haozhi Qi†1,3, Guanya Shi†1,4, C. Karen Liu†1,5
+1Amazon FAR, 2UCSD, 3University of Chicago, 4CMU, 5Stanford University
+simduoreal.github.io
+Cooking
+Pre-grasp Manipulation
+In-Hand-Manipulation
+Handover
+Grasping & Re-grasping
+Object-Centric
+Zero-Shot Sim-to-Real
+Single Unified Policy
+Assembled!
+Diverse Tasks
+Table Cleaning
+Bimanual Coordination
+Peg Insertion
+Maintaining
+Scanned!
+Cleaned!
+Cooking!
+Barcode Scanning
+Fig. 1: SimDuoReal is a single object-centric policy that controls two dexterous arm-hand systems from a stream of desired object
+configurations. The same policy, transferred zero-shot from simulation, performs assembly, barcode scanning, table cleaning, and cooking
+on real hardware. Markers denote the behaviors that emerge along each rollout: pre-grasp manipulation (orange), in-hand manipulation
+(green), handover (red), grasping and re-grasping (blue), and bimanual coordination (teal).
+Abstract— Bimanual dexterous manipulation requires coordi-
+nated arm and hand control, yet specifying such coordination
+manually is challenging and often task-specific. In this work, we
+explore whether complex bimanual dexterity can emerge from a
+simple object-centric learning objective. We train reinforcement
+learning policies under a shared object-centric reward, varying
+their training environments rather than tuning separate rewards
+for each behavior. We find that the policies discover pre-grasp
+manipulation, grasping and regrasping, in-hand adjustment
+and handover to reach object-pose goals without hand-designed
+motion sequences. We then refine the experts on transition states
+and use DAgger and reinforcement learning to distill them into a
+single policy that composes these behaviors for diverse bimanual
+tasks. On real hardware, the same policy succeeds in 61 of 80
+trials (76.3%) across four tasks with unseen objects and no task-
+specific fine-tuning. In simulated barcode scanning, our policy
+achieves 85.0% success, compared with 60.4% for two single-
+arm policies without handover. These results suggest that this
+†Amazon FAR team co-lead.
+objective provides a simple and scalable interface for learning
+general bimanual dexterity, shifting the burden from manually
+designing robot coordination to specifying what should happen
+to the object.
+I. INTRODUCTION
+Bimanual dexterous manipulation systems have the poten-
+tial to perform a wide range of everyday tasks: picking up
+an object, reorienting it to expose a desired face, and passing
+it between hands. Existing systems have demonstrated these
+capabilities on individual tasks [1]–[3]. However, specifying
+these behaviors is challenging because the robot must decide
+not only how to move the object, but also which hand to use
+and when to pass it between hands. Existing methods often
+specify this coordination through task-specific rewards or skill
+sequences. These specifications are difficult to reuse across
+tasks, so extending the system to new behaviors requires
+repeated engineering.
+arXiv:2611.10410v1  [cs.RO]  7 Nov 2026
+
+
+Object-centric formulations sidestep part of this problem by
+specifying tasks purely in terms of the object’s desired state,
+leaving the robot free to discover how to bring it about. For
+example, SimToolReal [1] trains a single-arm policy to move
+procedurally generated tool-like objects to random 6-DoF goal
+poses and transfers zero-shot to unseen real tools. Tasks can
+then be specified as sequences of object goal poses without
+object- or task-specific training. Extending this approach to
+two hands over a larger workspace, however, poses a learning
+challenge. For goals beyond either hand’s reach, the policy
+must discover how to transfer the object before it can complete
+the goal. RL can instead settle for partial progress with one
+hand without discovering the handover needed to reach the
+goal.
+The straightforward approach is to add task-specific rewards
+that shape hand selection and handover. This can guide
+exploration, but requires specifying how the hands should
+coordinate for each behavior. New behaviors may then require
+new reward terms, weakening the benefit of a reusable object-
+goal interface.
+In this work, we extend object-centric task specification
+to bimanual dexterous manipulation by designing training
+environments rather than hand-craft separate rewards for
+each behavior. We vary the distribution of object goals
+and constrain each hand’s workspace under a shared object-
+centric reward. Bimanual behaviors emerge during training,
+without explicitly programming how the hands should pick
+up, reorient, or pass the object (Fig. 1).
+More specifically, we define a reachable workspace for
+each hand and train two single-arm experts for object control
+within their respective workspaces. Furthermore, we train a
+bimanual expert for cross-workspace transfer (Sec. III-B). All
+three share the same object-centric representation and reward,
+while their training tasks only differ in goal sampling, episode
+initialization and termination. For single-arm training, the
+object starts on the table and the goals stay within that arm’s
+reach. The hand learns to pick up the object, reorient it, and
+change its grasp as the goals change. For handover training,
+one hand starts holding the object, and the goal is sampled
+from the other hand’s workspace, forcing the holding hand to
+pass the object to the other hand to reach the goal. A goal is
+complete only when the receiving hand contacts the specified
+surface region on the object and the giving hand releases
+the object. As a result, the giver learns to adjust the object
+before passing it, exposing this region for a transfer grasp
+rather than a hold grasp (Fig. 5). We distill the experts into
+one policy using behavior cloning and RL, after fine-tuning
+each expert from states reached by preceding experts. During
+distillation, the policy is trained on both individual expert
+behaviors and their transitions (Sec. III-C).
+Our policy can be prompted with objects: we specify how
+the objects should move, and the policy controls the arms and
+hands to carry out that motion without task-specific training.
+An operator can provide these prompts by moving virtual
+objects in VR. We also extract object trajectories from RGB-
+D human demonstrations using FoundationPose [4] and use
+them as pose waypoints. We evaluate barcode scanning in
+simulation with unseen object shapes. On real hardware, we
+use object-level teleoperation to test unseen objects on four
+tasks: barcode scanning, peg insertion, cleaning, and cooking
+(see Fig. 1). We also compare expert-first and end-to-end
+training and ablate expert refinement, the distillation loss, and
+the training scenes (Sec. IV).
+Contributions.
+• We design training environments that use object-goal
+sampling and workspace constraints to learn single-arm
+control and bimanual handover under a shared object-
+centric reward, rather than separate rewards for each
+behavior.
+• We show that pickup, in-hand adjustment, regrasping,
+and handover emerge without hand-designed motion
+sequences. Before handover, the giver learns transfer
+grasps that expose the object region the receiver needs
+to grasp.
+• We prompt one bimanual policy with object motion to
+execute new tasks without task-specific training. We
+demonstrate this with unseen real objects in barcode
+scanning, peg insertion, cleaning, and cooking.
+II. RELATED WORK
+Bimanual Dexterous Manipulation. Bimanual systems
+with multifingered hands have demonstrated coordinated
+behaviors such as twisting lids, tool use, and passing objects
+between hands [5]–[9]. Reinforcement learning systems
+specify each behavior through task-specific rewards or staged
+sub-goals [5]–[7], while imitation systems specify it through
+demonstrations collected per task [8]–[11]. In both cases the
+specification includes which hand acts and when the object
+changes hands, so a new behavior requires new reward terms
+or new demonstrations. We instead use a single object-centric
+reward and vary only the goal distribution and the workspace
+constraints used during training.
+Object-Centric Task Specification. A second line of
+work specifies manipulation through object-centric task spec-
+ification. In-hand reorientation reaches 6-DoF object pose
+goals with a single hand [2], [12]–[15], and recent methods
+use object trajectories as the learning signal for dexterous
+policies [16]–[18]. SimToolReal [1] trains a single-arm policy
+to move procedurally generated objects to random goal poses
+and transfers zero-shot to unseen real tools, so tasks become
+sequences of object goal poses. These formulations assume
+one hand and one workspace. With two hands, pose error
+alone does not distinguish a handover from a single-hand
+carry, and the carry is available whenever the goal is reachable;
+SimDuoReal makes the transfer the only strategy that reaches
+the goal.
+Composing Specialists into One Policy. Training spe-
+cialists and compressing them into one network is common
+practice: teacher–student distillation folds privileged or terrain-
+specific policies into a single deployable one [19]–[22],
+and skill-chaining work observes that a policy degrades on
+the initiation states its predecessor actually produces, and
+regularizes terminal states to close that gap [23], [24]. These
+pipelines still define each skill by its own reward or reference
+
+
+Simulation Training
+Real-World Deployment
+(B) Transition-Aware Distillation
+πL
+πR
+πH
+Experts Transition 
+State Pool
+Collect
+Expert Reainement
+Distillation Scenes
+Expert Scenes
+Composition 
+Scenes
+πU
+Distillation with Dagger + RL
+1
+2
+Unified Policy
+Reset
+(C) Deployment
+πU
+Diverse Sources
+Diverse Tasks
+Uniaied Interface
+Uniaied Policy
+Object  
+Trajectory
+VR
+Human Video
+or
+Shared Object-centric Representation and Reward
+(A) Goal-Driven Expert Learning
+Left Workspace Right Workspace
+πL
+πR
+πH
+Handover Emerges
+In-Hand Manipulation Emerges
+Initialization
+Goals
+Goals
+Initialization
+Initialization
+Goals
+Goals
+Fig. 2: System overview (A) Three experts are trained in simulation under a shared object-centric representation and reward, with different
+goal-sampling regimes: the left and right experts πL and πR learn grasping with in-hand manipulation from goals inside one arm’s
+workspace, and the handover expert πH learns handover from goals that shift from the giver’s workspace to the receiver’s. (B) The experts
+are refined from a pool of states collected at expert transitions, then distilled into a unified policy πU with Dagger and RL in scenes that
+contain both individual expert behaviors and their transitions. (C) At deployment, object trajectories from diverse sources such as VR
+teleoperation and videos serve as the unified interface, and the single policy πU executes diverse real-world tasks.
+motion. Our experts differ only in goal sampling, so one
+reward supervises both the refinement of each expert on its
+predecessors’ terminal states and the reinforcement learning
+term used during distillation.
+III. METHOD
+We propose SimDuoReal, a single bimanual policy for
+manipulating one or two objects toward desired 6-DoF poses
+(Fig. 2). Through this common goal interface, SimDuoReal
+acquires dexterous behaviors such as grasping, in-hand
+adjustment and handover, which can be composed to execute
+downstream tasks such as coordinated tool use. Our key
+idea is that these behaviors can emerge from a shared object-
+centric formulation by varying only the training environments
+(Sec. III-B). We first train three workspace-conditioned
+experts for within-workspace control and cross-workspace
+transfer. We then refine these experts at transition boundaries
+and distill them into a unified policy using DAgger and
+reinforcement learning in scenes spanning individual expert
+regimes and their sequential or concurrent composition
+(Secs. III-C). At deployment, the unified policy tracks object
+trajectories obtained from VR or human video (Secs. III-D),
+enabling diverse zero-shot bimanul tool manipulation.
+A. Problem Formulation
+We consider the problem of learning a bimanual dexterous
+policy that manipulate up to two objects to desired 6-DoF
+pose sequences. At control step t, let Jt ⊆{1, 2} index
+the active objects. For each object j ∈Jt, Tj
+t, ˆTj
+t ∈SE(3)
+denote its current and goal poses. The policy observes the
+robot proprioception st, the current and goal object poses,
+and object-centric geometric representation gt introduced in
+Secs.III-B:
+at = πθ
+
+st, {Tj
+t, ˆTj
+t, gt}j∈Jt
+
+∈R58,
+(1)
+where at specifies relative displacements from the previous
+targets for the arms and absolute targets for the hands as [1].
+A task is specified by object-pose goals for each active
+object, provided online or as waypoint sequences (Sec. III-D).
+The policy is conditioned on the current goals. A goal is
+complete when the pose error dj
+t falls below ϵ. For cross-
+workspace object transfer, this condition additionally requires
+the receiving hand to establish contact and the giving hand
+to release the object.
+B. Learning Workspace Experts through Goal Sampling
+We define a Left Workspace and a Right Workspace
+to indicate the reachable space for each hand, with an
+overlapping zone in the middle (see Fig. 2). We train two
+single-arm experts ak
+t = πk(ok
+t ) ∈R29, k ∈{L, R}, for
+object control within their respective workspaces and one
+bimanual expert aH
+t = πH(ot) ∈R58 for cross-workspace
+transfer. All three share the same object-centric representation
+and reward, while their training tasks differ in goal sampling
+and episode initialization and termination. Grasping, in-hand
+adjustment, and handover therefore emerge from object-pose
+reaching without skill-specific motion references or rewards.
+1) Goal-Sampling Regimes:
+a) Within-workspace control per arm: The episode
+begins with an un-grasped object on the table. Following
+SimToolReal [1], an initial goal position is sampled within the
+arm’s reachable workspace Wk ⊂R3, and subsequent goals
+are generated by translations and rotations while remaining
+within Wk. Repeatedly reaching these goals requires grasping
+and sustained object control while also producing in-hand
+adjustment and regrasping as goals change.
+b) Cross-Workspace Transfer: The bimanual expert is
+trained from states in which one hand, designated as the
+giver initially holds the object. The goal-sampling region
+then shifts from the giver’s workspace into the receiver’s
+workspace excluding the overlapping zone. We sample Nshift
+
+
+Fig. 3: The object-centric representation This figure shows the
+representation for the manipulated object duing handover. The
+object’s surface splits into the target contact region S+ (handle,
+green) and the non-target contact region S−(head, red); nearest-
+region displacements δ+
+A,i (green) and δ−
+A,i (red) relate the keypoints
+xA,i of the target actor A+ (receiver, blue) and the non-target actor
+A−(giver, orange) to both regions.
+goals in the cross-over setting and Ndst further goals in
+the destination workspace. We train with both directions by
+exchanging giver and receiver roles. During expert training we
+set Nshift = Ndst = 1 to focus learning on the handover itself.
+A cross-workspace goal is completed only after the receiver
+establishes contact and the giver releases the object. Dropping
+the object or violating the workspace constraints terminates
+the episode. This goal distribution induces handover and
+preparatory object adjustment without specifying either
+behavior explicitly.
+2) Unified Object-Centric Formulation:
+a) Shared Object-Centric Representation: Building on
+GraspXL [25], we extend hand–object displacement features
+to both hands and add inter-hand displacements for bimanual
+coordination. For each object j, target and avoidance regions
+S+
+j and S−
+j specify desired and undesired contact. Let xA,i
+denote the position of keypoint i on the left or right hand,
+A ∈{AL, AR}. Its nearest sampled points in S+
+j and S−
+j
+are y+
+A,i and y−
+A,i, respectively. Omitting the object index j,
+the hand–object displacements are
+δ+
+A,i = y+
+A,i −xA,i,
+δ−
+A,i = y−
+A,i −xA,i.
+(2)
+Without a superscript, δA,i denotes the displacement to the
+nearest sampled point on the full surface Sj = S+
+j ∪S−
+j . Inter-
+hand displacements are δLR
+i,k = xAR,k −xAL,i for each pair
+of left- and right-hand keypoints. Within-workspace experts
+use only the active hand’s hand–object features; the bimanual
+expert and unified student use both hands’ features and inter-
+hand displacements. We concatenate hand–object features
+across active objects with inter-hand features where applicable
+to form gt, capturing geometric relationships for coordination
+regardless of changing contact roles.
+b) Role-Conditioned Object-Centric Reward: We reward
+goal-pose reaching subject to assigned contact roles. For each
+object j, the target actor A+
+j should establish or maintain
+contact with S+
+j , while the non-target actor A−
+j should release
+the object. These roles correspond to the active arm and table
+within a workspace, or the receiving and giving arms during
+transfer. They can change during manipulation, for example
+when a handover reverses direction.
+All experts share the reward:
+rt =
+" X
+j∈Jt
+
+rpose,j
+t
++ rcon+,j
+t
++ rcon−,j
+t
++ rsucc,j
+t
+
+−rvel
+t
+#
+rpen
+t
+,
+(3)
+where Jt denotes the active objects. The pose term rpose,j
+t
+and target-contact term rcon+,j
+t
+reward progress through the
+shared function [1]:
+R(d, d∗) = max(d∗−d, 0).
+(4)
+For each term, d is the current distance and d∗is the previous
+minimum. Pose history resets for each new goal; target-
+contact history resets when actor roles change. These two
+terms reward only new distance improvements, preventing
+repeated rewards for static proximity or oscillation.
+Following [1], [7], the pose term rpose,j
+t
+uses the maximum
+distance between N corresponding object-frame keypoints,
+whose world positions under the current and target poses are
+pj
+t,ℓand ˆpj
+t,ℓ:
+dpose,j
+t
+=
+max
+ℓ=1,...,N
+pj
+t,ℓ−ˆpj
+t,ℓ
+
+2 .
+(5)
+This metric combines translation and rotation errors without
+separately tuned weights.
+rcon+,j
+t
+encourages A+
+j
+to approach the target region
+S+
+j , while rcon−,j
+t
+encourages separation of A−
+j from the
+full object surface Sj = S+
+j ∪S−
+j . For hand actors, the
+corresponding distances are
+dcon+,j
+t
+=
+X
+i
+δ+
+A+
+j ,i
+
+2
+,
+dcon−,j
+t
+= min
+i
+δA−
+j ,i
+
+2 .
+(6)
+The separation reward rcon−,j
+t
+includes a bonus Btransfer
+awarded once when actor roles change. rsucc,j
+t
+rewards reach-
+ing each goal pose while satisfying its contact requirements.
+Finally, rvel
+t
+penalizes joint velocities, and the safety factor
+rpen
+t
+scales down the reward when the two arms and hands
+get too close. Further details appear in Appendix VI-A.
+3) RL Training Details: We train each expert using
+EPO [26] with an asymmetric critic. The actor receives
+only observations available during real-world deployment,
+while the critic additionally receives privileged simulator
+state. Following SimToolReal [1], we train on two-part
+primitive objects with randomized geometry and inertial
+properties. The body and head surfaces define the target
+region S+
+j and avoidance region S−
+j , respectively. We also
+adopt its success tolerance curriculum and sim-to-real domain
+randomization. Specifically, we randomize robot and object
+dynamics, inject observation noise, and apply external force
+and torque perturbations to the objects.
+C. Distilling Workspace Experts into a Unified Policy
+We combine the three experts’ complementary behaviors
+in a unified bimanual policy πU, using the same object-
+centric observations and action space as πH. To meet the
+requirements of diverse downstream tasks, we design three
+
+
+training scene distributions covering expert behaviors and their
+composition, with routing rules that select the appropriate
+experts. Since switching experts can expose them to unfamiliar
+states, we first refine them on transition states collected
+in end-to-end cross-workspace scenes. The refined experts
+then supervise πU through DAgger, alongside reinforcement
+learning.
+1) Training Scenes and Expert Routing:
+a) Training Scenes: All scenes contain two objects,
+initially one in each workspace. For objects not assigned for
+manipulation, we set their goals to their current poses. At
+each episode reset, we sample one of the following three
+scene types with probabilities 0.4, 0.4, and 0.2, respectively:
+Cross-workspace expert scenes begin with one grasped
+object whose goals shift between workspaces, following πH’s
+training setup (Sec. III-B.1.b). The other object rests on the
+table, unassigned for manipulation.
+End-to-end cross-workspace scenes begin with both
+objects resting on the table. One is randomly selected
+for source-side pickup and manipulation, cross-workspace
+transfer, and destination-side manipulation. Goals follow the
+cross-workspace schedule (Sec. III-B.1), with Nshift sampled
+uniformly from {3, . . . , 7} at each reset and Ndst = 2. The
+other object remains unassigned for manipulation.
+Concurrent manipulation scenes begin with both objects
+resting on the table. Both arms manipulate simultaneously,
+each acting on the object in its own workspace. Each object’s
+goal advances independently upon completion.
+b) Expert Routing: For each object assigned for manip-
+ulation, we query the corresponding workspace expert, πL
+or πR, when its current and goal positions lie in the same
+workspace, and πH when a grasped object must reach a goal
+in the other workspace. This rule switches teachers as end-to-
+end scenes alternate between within-workspace manipulation
+and cross-workspace transfer. For concurrent manipulation,
+we combine the arm-specific actions from πL and πR into a
+bimanual action. Expert routing is used only during training
+and is not exposed to πU.
+2) Transition-Aware Expert Refinement: During rollouts
+in end-to-end cross-workspace scenes, we observe excessive
+and unstable adjustments when experts encounter unfamiliar
+states generated by their predecessors. We collect the states
+at expert transitions into a pool. For each target expert, we
+sample transition states from its valid predecessors to initialize
+episodes in its own training scenes. This adapts each expert to
+states encountered at behavior transitions. The refined experts
+serve as teachers for distillation.
+3) Distillation with DAgger and RL: During student
+rollouts, DAgger queries the routed teachers on states visited
+by πU. We optimize
+L = wDAggerLDAgger + wrlLrl,
+(7)
+where LDAgger matches the unified policy’s actions to
+teacher actions, and Lrl is the policy-gradient loss under the
+shared reward from Sec. III-B. The imitation term preserves
+the experts’ established behaviors, while reinforcement learn-
+ing allows the unified policy to recover from its own errors
+(a)
+(b)
+(c)
+Robot
+Virtual Goals
+Cameras
+Workspace
+AR Workspace
+Fig. 4: Experimental setup (a) Real-world setup from the VR view.
+Three calibrated RGB-D cameras (orange) surround the workspace,
+and the human controls the object goal poses, shown as rendered
+object copies, which are streamed to the policy. (b) The real-world
+object set. (c) An example rule-based object trajectory for the
+simulated barcode-scanning benchmark.
+and improve behavior composition. The loss weights follow
+the scheduling strategy of [27].
+D. Task Generalization through Object Pose Commands
+At deployment, tasks are specified by object-pose goals
+that describe the desired object motion. Given object assets
+and contact regions, our unified command interface accepts
+these goals from diverse sources. We demonstrate two: 1)
+VR: An operator moves virtual objects using a Meta Quest
+3, streaming poses at 60 Hz to update the active goals. 2)
+Human Video: We use FoundationPose [4] to extract object
+trajectories from human demonstrations and downsample
+them into waypoints τ j = { ˆT j
+k }Kj
+k=1. Each waypoint becomes
+the active goal until the completion condition is met (Sec. III-
+A), after which the policy advances to the next waypoint.
+The interface supports tasks involving one or two objects.
+For single-object scenes, we complete the observation with a
+dummy object whose goal is set to its current pose. For two-
+object waypoint trajectories, goals advance independently for
+concurrent manipulation or synchronously for paired motions
+such as alignment and insertion.
+The unified policy executes these object-pose commands
+through pre-grasp manipulation, grasping, in-hand adjustment,
+and handover, enabling zero-shot execution of diverse tasks
+without task-specific fine-tuning or robot-level commands.
+IV. EXPERIMENT
+A. Experimental Setup
+We evaluate SimDuoReal on four real-world tasks and
+through controlled simulation experiments. The same policy
+runs at 60 Hz across all tasks without task-specific fine-tuning.
+Real-world objects are unseen during training (Fig. 4b) and
+initialized ungrasped at randomized poses.
+Hardware Setup We use two Franka Research 3 arms with
+22-DoF Sharpa Wave hands. Three RGB-D ZED cameras
+are calibrated to a shared world frame and jointly cover the
+
+
+In-hand adjustment to give receiver space
+Giver maintains stable grasp
+Receiver adjusts to more stable grasp
+Not graspable object pose
+Adjust object pose before grasping
+Good for grasping
+(a) Handover
+(b) Pre-grasp Manipulation
+(c) In-hand Manipulation
+Receiver grasps the object
+Fig. 5: Emergent behaviors on real hardware (a) Handover: the giver holds a stable grasp, adjusts the brush in-hand to expose a graspable
+region for the receiver, and releases once the receiver has grasped and settled into a more stable grasp. (b) Pre-grasp manipulation: when
+the object rests in a pose that is not graspable, the hand first pushes it into a graspable pose. (c) In-hand manipulation: the hand reorients
+the brush within the grasp to track subsequent object goals. None of these behaviors is specified explicitly; the policy discovers them from
+object-pose goals alone.
+bimanual workspace (Fig. 4a). A Meta Quest 3 provides
+object goal poses at 60 Hz.
+Object assets and pose tracking We obtain object meshes
+using AR Code1 on an iPhone or SAM3D [28] from RGB
+videos. We use SAM 2 with user prompts to segment the
+body and head regions, defining S+
+j and S−
+j , respectively. To
+track two objects at 60 Hz under heavy occlusion, we develop
+a multi-view perception pipeline using FoundationPose [4]
+and Cutie [29] on each camera. Per-view pose estimates
+are transformed into the shared world frame and filtered by
+observed-to-rendered depth consistency. Failed trackers are
+reinitialized from reliable estimates in other views, while the
+remaining poses are fused using Fixed Lag Smoothing (FLS)
+over an SE(3) pose graph [15]. The policy uses the latest
+pose estimates at each control step.
+B. Real-World Evaluation
+1) Tasks and Evaluation Protocol: We evaluate our unified
+SimDuoReal policy on four real-world tasks without task-
+specific fine-tuning. Together, these tasks cover comple-
+mentary dimensions of bimanual dexterity, including object
+handover, coordinated manipulation of two objects, and
+precise object alignment. We conduct 20 trials per task using
+unseen objects initialized at randomized poses. When both
+objects initialized in same workspace, handover is required.
+Barcode Scanning We conduct trials across three distinct
+brushes, each initialized in either the scanner-side or opposite
+workspace. The robot must grasp and orient the brush to
+align its barcode with a fixed scanner, transferring it between
+hands when necessary. The task require precise alignment
+between barcode and scanner. A trial succeeds when the
+scanner detects the barcode.
+Peg insertion A peg and a holed block are initialized
+independently in either workspace or the same workspace.
+1https://ar-code.com/
+TABLE I: Real-world results on four tasks combining
+complementary bimanual capabilities. The same SimDuoReal
+policy is used for all tasks without task-specific fine-tuning.
+Success is reported as the number of successful trials out of 20.
+Task
+Handover
+Two-Object
+Coordination Precision
+SR
+Barcode scanning
+✓
+✓
+15/20
+Peg insertion
+✓
+✓
+✓
+15/20
+Cleaning
+✓
+✓
+16/20
+Cooking
+✓
+15/20
+Average (%)
+76.25
+The robot must coordinate both hands to align and insert the
+peg. Success requires reaching the specified insertion depth.
+Cleaning A brush and a dustpan are initialized indepen-
+dently in the same or separate workspaces. The robot must
+acquire both tools and execute a coordinated sweep while
+maintaining tool alignment. Success requires completing the
+sweep twice.
+Cooking A spatula and a frying pan are initialized in
+separate workspaces. The robot must stabilize the pan with
+one hand while executing a stirring motion with the spatula in
+the other. Success requires completing two cycles of stirring
+motions.
+2) Results: Table I shows that SimDuoReal achieves an
+overall success rate of 76.3% with similar performance across
+four real-world tasks. Trained only on primitive objects, the
+same policy generalizes to both novel tasks and unseen real-
+world objects without task-specific fine-tuning.
+Fig. 5 illustrates the emergent dexterity exhibited by
+SimDuoReal. During handover, the giver reorients the object
+to expose an accessible region, the receiver establishes a
+stable grasp, and the giver releases. The policy also performs
+pre-grasp manipulation to reposition objects from ungraspable
+configurations, and in-hand manipulation to reach poses
+
+
+TABLE II: Simulation results on barcode scanning. We compare
+full SimDuoReal policy with baselines and distillation variants.
+Bold marks the best result per metric.
+Method
+SR (%)
+↑
+Prog. (%)
+↑
+Time (s)
+↓
+Chained expert teachers
+SimDuoReal teacher w/o cross-workspace
+expert
+60.4
+79.6
+9.2 ± 4.9
+SimDuoReal teacher w/o transition-aware
+refinement
+79.4
+88.1
+9.1 ± 4.4
+SimDuoReal teacher
+84.3
+89.8
+8.7 ± 4.0
+Unified student policy
+SimDuoReal w/o expert scenes
+68.3
+84.8
+8.8 ± 4.4
+SimDuoReal w/o RL loss
+81.6
+89.5
+9.0 ± 4.2
+SimDuoReal
+85.0
+90.8
+8.6 ± 3.9
+unavailable through arm motion alone because of constraints
+from the table or the other arm. These arm and hand behaviors
+are not specified by the operator, but arise autonomously as
+SimDuoReal tracks the commanded object motion.
+C. Simulation Analysis and Ablation Study
+We use barcode scanning as a controlled simulation
+benchmark (Fig. 4c) that follows rule-based trajectories
+that interpolates position and orientation linearly, because
+successful execution requires grasping an initially ungrasped
+object, reorienting it toward the scanner, transferring it to
+scanner workspace when necessary, and precisely reaching
+the final scan pose. We evaluate each method over 3,072 envs
+each with distinct unseen primitive objects and randomized
+initial poses across bimanual workspace. Each env contains
+K = 7 task waypoints. We report three metrics: success rate
+(SR), the percentage of episodes in which the policy reaches
+the final task goal; task progress (Prog.), the percentage of
+waypoints reached in each episode, averaged over all episodes;
+and completion time (Time), the elapsed simulator time from
+episode initialization to the final goal, reported as mean and
+standard deviation over successful episodes.
+1) Why train workspace expert separately: SimDuoReal
+separately trains three expert policies before unifying them.
+Fig. 6 compares cross-workspace expert training with an end-
+to-end baseline trained from scratch on all three workspace
+regimes, using three seeds and the same algorithm, environ-
+ment count, initial-state distribution, and compute budget.
+End-to-end training becomes particularly challenging when
+Fig. 6: Expert training vs. End-to-End training.
+all required behaviors must be learned jointly from scratch.
+This approach also limits extensibility, as incorporating new
+skills requires retraining on the expanded task distribution. In
+contrast, the expert-based approach allows new skills to be
+trained independently and integrated into the unified policy
+through distillation.
+2) Why do we need handover:
+We compare with
+SimDuoReal teacher w/o cross-workspace expert, which
+transfers objects by placing them in the shared workspace for
+the other hand to regrasp. In contrast, SimDuoReal directly
+coordinates the two hands to transfer the object without
+an intermediate placement. Adding the handover expert, by
+chaining all three using a workspace-based routing rule,
+even without transition-aware refinement (SimDuoReal w/o
+transition-aware refinement), raises success to 79.4% and
+progress from 79.6% to 88.1%, while reducing completion
+time. Without handover, failures are dominated by timeouts
+and drops during placement and regrasping, whereas direct
+transfer introduces only a small fraction of handover-specific
+failures.
+3) Why is transition-aware expert refinement needed:
+Although rule-based chaining selects the appropriate expert,
+it does not ensure that the succeeding expert is prepared for
+the state produced by its predecessor. In particular, the hand
+configuration produced by one expert may be poorly matched
+to the preferred manipulation configuration of the next.
+Despite maintaining a high success rate through the experts’
+recovery ability and hand-configuration generalization, the
+policy often performs excessive in-hand adjustment and
+regrasping. We therefore refine each expert on states collected
+at transitions from its predecessors, enabling more efficient
+and stable transitions between experts. This improves success
+from 79.4% to 84.3% and reduces completion time from 9.1 s
+to 8.7 s.
+4) How effective is the distillation?: Removing cross-
+workspace expert scenes (SimDuoReal w/o expert scenes)
+reduces success to 68.3%, primarily due to degraded handover
+performance, indicating that composition scenes alone cannot
+preserve learned transfer behavior. Removing the RL loss
+(SimDuoReal w/o RL loss) yields 81.6% success, below
+the refined teachers’ 84.3%. Adding RL helps the student
+better capture expert behaviors and surpass the teachers by
+encouraging preceding behaviors to produce states better
+suited to subsequent manipulation. The unified policy achieves
+85.0% success.
+V. CONCLUSION
+We presented SimDuoReal, a bimanual policy that learns
+dexterous arm–hand coordination from a shared object-centric
+objective rather than behavior-specific rewards. By varying
+only the goal-sampling regime under one object-centric
+representation and reward, we train two within-workspace
+experts and one cross-workspace expert in which grasping,
+in-hand adjustment, regrasping, and handover—including the
+transfer grasps that expose the region the receiver needs—
+emerge without prescribed motion sequences. We then distill
+them into a unified policy that is prompted purely with object
+
+
+motion from VR or human video. The single policy succeeds
+in 61 of 80 real-world trials (76.3%) on unseen objects across
+handover, two-object coordination, and precise alignment,
+and reaches 85.0% in simulation while matching its refined
+teachers, suggesting that object-centric task specification
+offers a simple and scalable interface that shifts the burden
+from designing how the hands should coordinate to specifying
+what should happen to the object.
+Limitations remain: SimDuoReal requires accurate object
+meshes and multi-view pose tracking; its 6-DoF goal interface
+does not directly capture force- or timing-dependent behaviors,
+motivating richer contact specifications; and goal trajectories
+are externally provided rather than generated autonomously
+ACKNOWLEDGMENT AND AI-USE DISCLOSURE
+OpenAI Codex was used for minor manuscript editing
+and code refinement. All scientific content and results were
+developed and verified by the authors.
+REFERENCES
+[1] K. Kedia, T. G. W. Lum, J. Bohg, and C. K. Liu, “Simtoolreal: An
+object-centric policy for zero-shot dexterous tool manipulation,” arXiv
+preprint arXiv:2602.16863, 2026.
+[2] OpenAI, M. Andrychowicz, B. Baker, M. Chociej, R. Jozefow-
+icz, B. McGrew, J. Pachocki, A. Petron, M. Plappert, G. Powell,
+A. Ray, J. Schneider, S. Sidor, J. Tobin, P. Welinder, L. Weng, and
+W. Zaremba, “Learning dexterous in-hand manipulation,” arXiv preprint
+arXiv:1808.00177, 2018.
+[3] D. Frau-Alfaro, J. Castaño Amoros, S. Puente, P. Gil, and R. Calandra,
+“Learning dexterous object handover,” arXiv preprint arXiv:2506.16822,
+2025.
+[4] B. Wen, W. Yang, J. Kautz, and S. Birchfield, “FoundationPose: Unified
+6D pose estimation and tracking of novel objects,” in Proceedings of the
+IEEE/CVF Conference on Computer Vision and Pattern Recognition,
+2024, pp. 17 868–17 879.
+[5] Y. Chen, T. Wu, S. Wang, X. Feng, J. Jiang, Z. Lu, S. McAleer,
+H. Dong, S.-C. Zhu, and Y. Yang, “Towards human-level bimanual
+dexterous manipulation with reinforcement learning,” in Advances
+in Neural Information Processing Systems, S. Koyejo, S. Mohamed,
+A. Agarwal, D. Belgrave, K. Cho, and A. Oh, Eds., 2022.
+[6] T. Lin, Z.-H. Yin, H. Qi, P. Abbeel, and J. Malik, “Twisting lids off
+with two hands,” Conference on Robot Learning (CoRL), 2024.
+[7] A. Petrenko, A. Allshire, G. State, A. Handa, and V. Makoviychuk,
+“Dexpbt: Scaling up dexterous manipulation for hand-arm systems with
+population based training,” Robotics: Science and Systems (RSS), 2023.
+[8] T. Lin, Y. Zhang, Q. Li, H. Qi, B. Yi, S. Levine, and J. Malik, “Learning
+visuotactile skills with two multifingered hands,” arXiv:2404.16823,
+2024.
+[9] K. Shaw, Y. Li, J. Yang, M. K. Srirama, R. Liu, H. Xiong, R. Mendonca,
+and D. Pathak, “Bimanual dexterity for complex tasks,” in 8th Annual
+Conference on Robot Learning, 2024.
+[10] T. Z. Zhao, V. Kumar, S. Levine, and C. Finn, “Learning fine-
+grained bimanual manipulation with low-cost hardware,” arXiv preprint
+arXiv:2304.13705, 2023.
+[11] Z. Jiang, Y. Xie, K. Lin, Z. Xu, W. Wan, A. Mandlekar, L. Fan, and
+Y. Zhu, “Dexmimicgen: Automated data generation for bimanual dex-
+terous manipulation via imitation learning,” in 2025 IEEE International
+Conference on Robotics and Automation (ICRA), 2025.
+[12] A. Handa, A. Allshire, V. Makoviychuk, A. Petrenko, R. Singh, J. Liu,
+D. Makoviichuk, K. Van Wyk, A. Zhurkevich, B. Sundaralingam et al.,
+“Dextreme: Transfer of agile in-hand manipulation from simulation
+to reality,” in 2023 IEEE International Conference on Robotics and
+Automation (ICRA).
+IEEE, 2023, pp. 5977–5984.
+[13] T. Chen, J. Xu, and P. Agrawal, “A system for general in-hand object
+re-orientation,” in Conference on robot learning.
+PMLR, 2022, pp.
+297–307.
+[14] Z.-H. Yin, B. Huang, Y. Qin, Q. Chen, and X. Wang, “Rotating without
+seeing: Towards in-hand dexterity through touch,” arXiv preprint
+arXiv:2303.10880, 2023.
+[15] R. Chen, M. Mukadam, M. Kaess, T. Wu, F. R. Hogan, J. Malik, and
+A. Sharma, “Ptld: Sim-to-real privileged tactile latent distillation for
+dexterous manipulation,” arXiv preprint arXiv:2603.04531, 2026.
+[16] Y. Chen, C. Wang, Y. Yang, and C. K. Liu, “Object-centric
+dexterous manipulation from human motion data,” arXiv preprint
+arXiv:2411.04005, 2024.
+[17] X. Liu, J. Adalibieke, Q. Han, Y. Qin, and L. Yi, “DexTrack: Towards
+generalizable neural tracking control for dexterous manipulation
+from human references,” in International Conference on Learning
+Representations, 2025.
+[18] T. G. W. Lum, O. Y. Lee, C. K. Liu, and J. Bohg, “Crossing
+the
+human-robot
+embodiment
+gap
+with
+sim-to-real
+rl
+using
+one
+human
+demonstration,”
+2025.
+[Online].
+Available:
+https:
+//arxiv.org/abs/2504.12609
+[19] A. A. Rusu, S. G. Colmenarejo, C. Gulcehre, G. Desjardins, J. Kirk-
+patrick, R. Pascanu, V. Mnih, K. Kavukcuoglu, and R. Hadsell, “Policy
+distillation,” in International Conference on Learning Representations,
+2016.
+[20] S. Ross, G. J. Gordon, and J. A. Bagnell, “A reduction of imitation
+learning and structured prediction to no-regret online learning,” in
+International Conference on Artificial Intelligence and Statistics
+(AISTATS), 2011.
+[21] Z. Zhuang, Z. Fu, J. Wang, C. Atkeson, S. Schwertfeger, C. Finn, and
+H. Zhao, “Robot parkour learning,” in Conference on Robot Learning
+(CoRL), 2023.
+[22] X. Cheng, K. Shi, A. Agarwal, and D. Pathak, “Extreme parkour with
+legged robots,” in IEEE International Conference on Robotics and
+Automation (ICRA), 2024.
+[23] Y. Lee, J. J. Lim, A. Anandkumar, and Y. Zhu, “Adversarial skill
+chaining for long-horizon robot manipulation via terminal state
+regularization,” in Conference on Robot Learning (CoRL), 2021.
+[24] Y. Chen, C. Wang, L. Fei-Fei, and C. K. Liu, “Sequential dexter-
+ity: Chaining dexterous policies for long-horizon manipulation,” in
+Conference on Robot Learning (CoRL), 2023.
+[25] H. Zhang, S. Christen, Z. Fan, O. Hilliges, and J. Song, “GraspXL:
+Generating grasping motions for diverse objects at scale,” in European
+Conference on Computer Vision (ECCV), 2024.
+[26] J. Wang, Y. Su, A. Gupta, and D. Pathak, “Evolutionary policy
+optimization,” arXiv preprint arXiv:2503.19037, 2025.
+[27] Z. Wu, X. Huang, L. Yang, Y. Zhang, K. Sreenath, X. Chen, P. Abbeel,
+R. Duan, A. Kanazawa, C. Sferrazza et al., “Perceptive humanoid
+parkour: Chaining dynamic human skills via motion matching,” arXiv
+preprint arXiv:2602.15827, vol. 1, 2026.
+[28] X. Chen, F.-J. Chu, P. Gleize, K. J. Liang, A. Sax, H. Tang, W. Wang,
+M. Guo, T. Hardin, X. Li et al., “Sam 3d: 3dfy anything in images,”
+in Proceedings of the IEEE/CVF Conference on Computer Vision and
+Pattern Recognition, 2026, pp. 7220–7232.
+[29] H. K. Cheng, S. W. Oh, B. Price, J.-Y. Lee, and A. Schwing, “Putting
+the object back into video object segmentation,” in arXiv, 2023.
+VI. APPENDIX
+A. Object-Centric Formulation
+1) Role-Conditioned Object-Centric Reward:
+a) Pose
+progress.:
+Following
+SimToolReal
+and
+DexPBT [1], [7], we measure pose error using fixed
+object-frame keypoints, with placement and scale as in
+SimToolReal. The pose reward rpose,j
+t
+uses Eq. 5:
+rpose,j
+t
+= λpose max
+
+dpose,j,∗
+t
+−dpose,j
+t
+, 0
+
+,
+(8)
+Here, dpose,j,∗
+t
+is the smallest distance achieved for the current
+goal and resets when a new goal is sampled.
+b) Target contact.: The target-contact reward rcon+,j
+t
+uses the target-region distance in Eq. 6:
+rcon+,j
+t
+= λcon+ max
+
+dcon+,j,∗
+t
+−dcon+,j
+t
+, 0
+
+,
+(9)
+Here, dcon+,j,∗
+t
+is the smallest distance achieved under the
+current actor roles and resets when those roles change.
+
+
+c) Non-target separation.:
+The separation reward
+rcon−,j
+t
+rewards increases over the initial separation distance:
+rcon−,j
+t
+= λsep max
+
+dcon−,j
+t
+−dcon−,j
+init
+, 0
+
++BtransferI[T j
+t ].
+(10)
+Here, dcon−,j
+init
+is the initial separation distance under the
+current actor roles and resets when those roles change. Each
+role change T j
+t from goal sampling earns Btransfer once. For
+a giving hand, dcon−,j
+t
+is defined in Eq. 6. For the table, we
+use the vertical distance from the object-pose origin to the
+tabletop:
+dcon−,j
+t
+= zj
+t −ztable,
+A−
+j = table,
+(11)
+where zj
+t is the object’s vertical position and ztable is the
+tabletop height. With a fixed table height, the dense term
+reduces to λsep max(zj
+t −zj
+init, 0).
+d) Goal completion.: The goal-pose success reward
+rsucc,j
+t
+is
+rsucc,j
+t
+= BsuccI
+h
+dpose,j
+t
+< ϵ
+i
+I[Cj
+t ],
+(12)
+where ϵ is the pose tolerance. Upon success, Bsucc is awarded
+once and a new goal is sampled. The condition Cj
+t is always
+true within a workspace; during transfer, it requires contact
+by A+
+j and release by A−
+j .
+e) Motion regularization.: The joint-velocity penalty
+rvel
+t
+is
+rvel
+t
+=
+X
+A∈At
+ λarm∥˙qarm
+A,t ∥1 + λhand∥˙qhand
+A,t ∥1
+
+,
+(13)
+where At contains the active arms, ˙qarm
+A,t and ˙qhand
+A,t
+are arm
+and hand joint velocities.
+f) Arm and hand proximity.: Let pL,i and pR,k denote
+keypoint positions on the left and right arms and hands. Their
+minimum distance darm
+t
+determines the safety factor rpen
+t
+:
+darm
+t
+= min
+i,k ∥pL,i −pR,k∥2,
+rpen
+t
+= rmin + (1 −rmin) (1 −exp(wpendarm
+t
+)) .
+(14)
+With wpen < 0 and 0 < rmin < 1, rpen
+t
+increases from
+rmin toward one as clearance increases, attenuating positive
+rewards at small clearances.

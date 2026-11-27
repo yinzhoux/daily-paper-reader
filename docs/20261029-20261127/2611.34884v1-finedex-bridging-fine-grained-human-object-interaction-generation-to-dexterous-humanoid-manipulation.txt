@@ -1,0 +1,255 @@
+Title: FineDex: Bridging Fine-Grained Human-Object Interaction Generation to Dexterous Humanoid Manipulation
+
+URL Source: https://arxiv.org/pdf/2611.34884v1
+
+Published Time: Thu, 26 Nov 2026 03:54:13 GMT
+
+Number of Pages: 10
+
+Markdown Content:
+# FineDex: Bridging Fine-Grained Human–Object Interaction Generation to Dexterous Humanoid Manipulation 
+
+## Yujia Zeng 1 Yuxin Chen 1 Yuzhen Song 1 Runhan Huang 2
+
+## Chensheng Peng 1 Yiyang Shao 1 Koushil Sreenath 1
+
+## Masayoshi Tomizuka 1 Yilun Du 21University of California, Berkeley 2Harvard University 
+
+https://finedex.github.io/ Left Hand 
+
+Fine-grained Human Motion Generation Prior Simulation Real World           
+
+> "The left /right hand reaches toward the door." "...press the lever with only the index finger /thumb ." "...operate espresso machine with the index finger ." Left Hand Middle Finger Left Hand Index Finger Middle Finger Left Hand Fist Right Hand Palm
+
+Wuji Hands G1 + Wuji Hands Index Finger Thumb Right Hand 
+
+Figure 1. Fine-grained instruction-conditioned dexterous manipulation. FineDex generates human–object interaction priors that capture language-specified hand selection, finger-level contacts, and articulated-object interactions. These priors guide agentic dexterous manipulation, enabling precise instruction following in simulation and on real humanoid robots. 
+
+## Abstract 
+
+Dexterity is, at its core, finger-level control, yet exist-ing dexterous manipulation and human–object interaction (HOI) generation methods rarely let one specify how an interaction is performed: five-fingered hands are often re-duced to grippers, or finger usage is copied from individ-ual human demonstrations. We present FineDex, a frame-work that makes finger-level intent both expressible and ex-ecutable. FineDex learns coordinated human body, hand, and object motions that follow fine-grained instructions on hand selection, individual fingers, and contacts with articu-lated objects. To bridge generation and execution, FineDex leverages generated interactions as actionable priors for an agent that discovers physically feasible contact strategies through practice in a physics-based digital twin. By adapt-ing at test time without per-instance retraining, FineDex generalizes across fine-grained instructions and object con-figurations. Experiments demonstrate state-of-the-art HOI generation quality and fine-grained controllability, substan-tial improvements in dexterous manipulation success, and successful deployment on a real dexterous humanoid robot. 
+
+1arXiv:2611.34884v1 [cs.RO] 25 Nov 2026 1. Introduction 
+
+Dexterity is, at its core, finger-level control: humans press with a fingertip, hook with a specific finger, brace with the palm, and switch hands when one is busy. Yet existing dex-terous manipulation and human–object interaction (HOI) generation methods are evaluated mainly by task comple-tion alone: many effectively use a five-fingered hand as a gripper for pick-and-place [25, 28], while others copy what-ever finger usage appears in a specific human demonstra-tion [7, 24]. Meanwhile, human interaction data offers a scalable source of rich finger-level behaviors. The missing link is a model that can express such intent on demand— which hand, which finger, which contact—and a way to re-alize it on a physical robot. However, existing methods fall short on both fronts. On the expression side, text-conditioned HOI generators syn-thesize coordinated human–object motion [1, 3, 21, 23], but they respond almost only to task-level descriptions: asked to use the left hand or a particular finger, they produce the same interaction regardless. On the realization side, gener-ated motions are not physically exact, and differences in robot kinematics and contact dynamics make direct mo-tion replay unreliable. Existing pipelines bridge this gap by training reference-tracking policies [4, 7], but their re-liance on reference-specific training limits scalability to di-verse fine-grained instructions, object configurations, and robot-specific constraints. Our key insight is to decouple fine-grained intent genera-tion from its physical realization, treating generated HOI as a sketch of the intended interaction. What a human would do is best captured by a generative prior learned from fine-grained human interaction data. How the robot can do it 
+
+is best discovered through test-time practice in a physics-based digital twin. Generation supplies the finger-level in-tent; practice supplies its physical grounding. Building on this observation, we introduce FineDex , a framework that makes finger-level intent both expressible and executable. As shown in Fig. 1, FineDex learns to generate coordinated body, hand, and object motions con-ditioned on fine-grained instructions specifying hand se-lection, individual finger motions, and designated contacts. For execution, FineDex treats generated interactions as ac-tionable priors for an agent that proposes contact programs, practices them under randomized dynamics, and commits to the most reliable behavior, which is then executed on the robot. Because adaptation happens through practice, the same system generalizes to new instructions, robot-specific constraints, and object configurations without retraining. To measure what task success alone cannot, we intro-duce FingerBench, which evaluates whether generated mo-tions follow hand- and finger-level instructions and whether robots realize them in physics-based execution. Experi-ments demonstrate state-of-the-art HOI generation quality and finger-level controllability. In physics-based execu-tion, practice turns generated priors into reliable contact be-haviors where direct replay rarely succeeds while preserv-ing designated finger contacts. On a real Unitree G1 hu-manoid, FineDex completes articulated-object tasks under constraints it was never trained for, such as operating with the left hand only or with a single designated finger. Our main contributions are summarized as follows: • Finger-level HOI generation. A generator of coordi-nated body, hand, and articulated-object motion that fol-lows fine-grained instructions on hand selection, spe-cific fingers, and designated contacts, with state-of-the-art controllability and quality. • Practice-grounded dexterous execution. An agent that grounds generated interactions through practice, adapt-ing to fine-grained instructions and object configurations without retraining, with deployment on a real humanoid. • FingerBench and fine-grained ARCTIC annotations :a benchmark for evaluating fine-grained instruction fol-lowing in HOI generation and robotic execution, and fine-grained annotations for training instruction-conditioned HOI models, with the latter to be publicly released. 
+
+## 2. Related Work 
+
+2.1. Human–Object Interaction Generation 
+
+Text-conditioned HOI generation synthesizes coordinated hand, body, and object motion. Hand-centric methods gen-erate contact-aware interactions through diffusion [3, 5] or masked autoregressive diffusion [1], while whole-body methods generate human–object motion [13, 14, 21]. HOI-DiNi [23] improves contact realism through diffusion noise optimization, F-HOI [29] aligns fine-grained interaction states with language, and physics-based approaches syn-thesize dexterous grasping and articulated interactions [27, 32, 33]. Despite improved semantic and contact fidelity, instruction-level control over hand selection and individual finger contacts remains underexplored. Our work addresses this gap, evaluated through FingerBench. 
+
+2.2. Learning Dexterity from Human Data 
+
+Human demonstrations provide a rich source of dexterous behavior. Retargeting methods transfer captured or video-derived hand motion to robot hands [15, 19, 20, 22, 24], often refined by residual reinforcement learning [7, 15], and DexMimicGen [12] scales demonstrations through tra-jectory generation. At the humanoid level, motion track-ers reproduce large libraries of reference behaviors [17], and RoboSTAR [31] transfers generated sign-language mo-tion, including fine finger articulation, to humanoid hands without object contact. EmbodyHOI [4] adds embodiment-aware kinematic guidance during HOI generation, while FlowHOI [30] executes contact-aware generated HOI tra-2Digital Twin Digital Twin               
+
+> Robot Execution
+> Fine-grained Text Generator Hand-object Interaction
+> Motion Prior Policy
+> Feedback Agent
+> t
+> "...the left hand grips the handle of the microwave door using the thumb, index, middle, and ring fingers, pulling the door open..."
+> Policy
+
+Figure 2. Overview of FineDex. A language-conditioned generator synthesizes fine-grained human–object interactions. The generated interaction x serves as a prior for an agent that proposes contact programs π and refines them through feedback from a physics-based digital twin. The most reliable program, π⋆, is then executed on a dexterous humanoid robot. 
+
+jectories on robot arms. These methods primarily inherit finger usage from reference demonstrations, with physical execution often relying on imitation or reference-tracking policies. FineDex instead enables instruction-specified fin-ger control, grounded through test-time practice without per-reference training. 
+
+2.3. Language-Guided Agentic Manipulation 
+
+Language-model agents plan robot behavior through affordance-grounded skill selection [11], code genera-tion [16], and spatial or keypoint constraints [9, 10]. Simulation-driven approaches synthesize rewards and tasks for policy learning [18, 26], and RAX [8] acquires manip-ulation skills through online exploration with executable robot programs. FineDex connects agentic planning with generative HOI priors. 
+
+## 3. Method 
+
+As shown in Fig. 2, FineDex decomposes finger-level ma-nipulation into two stages. Given an articulated object O
+
+and an instruction ℓ that may specify the acting hand, fin-ger motions, or designated contacts, a generator expresses 
+
+what a human would do as a human–object interaction x
+
+(Sec. 3.1). An agent then determines how the robot can re-alize it by proposing and refining contact programs through practice (Sec. 3.2). 
+
+3.1. Fine-Grained HOI Generation 
+
+As shown in Fig. 3, our generator combines language, articulated-object geometry, and anatomical hand features to synthesize coordinated human body, hand, and object motion. We train it on ARCTIC [6] with our fine-grained language annotations, which describe hand roles, finger ac-tions, contact regions, and object-state changes. 
+
+Motion representation. We represent an interaction as 
+
+x = {xt}Nt=1 , where each frame contains the human root pose, body joint rotations, bilateral hand articulations, and object state. The object state comprises a rigid base trans-form TO 
+
+> t
+
+∈ SE (3) and an articulation angle θt, preserving hinge-constrained object motion. 
+
+Geometry-conditioned diffusion. We learn a conditional diffusion model pϕ(x | ℓ, O, x1: K ), where x1: K are known context frames. Its conditioning memory consists of token-level language features, point features of the sampled ob-ject surface, an object-state token encoding the relative base pose and hinge configuration, and anatomical anchor tokens distributed across the fingers. A Transformer denoiser uses frame queries to attend to these features. At diffusion step 
+
+s, it predicts the clean sequence as a residual to a damped constant-velocity extrapolation of the root, body, and object channels of the context, with finger channels holding the last context pose: 
+
+bx0 = P(x1: K ) + Dϕ(xs, s ; C), (1) where C denotes the conditioning memory. With a sin-gle context frame, P reduces to repeating it. Overlap-ping, context-conditioned windows extend the model to longer interactions. We train with reconstruction, kine-matic, and contact-weighted losses, and sample with DDIM and classifier-free guidance on text, keeping the object and structural controls fixed across guidance branches. 
+
+Hand selection. We separate the task description from structured hand and finger commands. To control the acting hand, we guide each denoising step with low-dimensional, temporally interpolated body-pose offsets. The guidance penalizes displacement of the stationary hand’s anchor cen-troid and wrist, while attracting the acting hand toward an object- and part-dependent contact prototype estimated from training interactions. The offsets are optimized at sparse temporal knots and interpolated across the motion window. The inactive arm joints are additionally fixed to their observed configuration. 
+
+Compositional finger motion control. We introduce a lightweight adapter for finger-specific motion control with-3Denoiser       
+
+> Body/Object Head Fingers Head
+> Known Frames Cross Attn. DDIM x40 Per-finger Residual Contact Refinement x8 Hand Selection Motion Prior from
+> Adapter
+> Text Object Finger Selection
+> LR
+> …Encoder Figure 3. Architecture of the FineDex generator. The generator supports all articulated objects in ARCTIC, integrating language conditioning, articulated object geometry, and anatomical hand features within a diffusion-based framework. A finger-specific adapter injects control signals into anatomical anchor tokens while the pretrained backbone stays frozen. At inference, dual-trajectory sampling edits the commanded fingers while preserving the rest of the motion.
+
+out retraining the diffusion backbone. Each control token encodes a finger identity and keyframe curl targets. Trained on synthetic finger edits, the adapter injects control resid-uals into the corresponding anatomical anchor tokens and predicts finger-specific joint corrections. Unlike direct joint interpolation, the learned edits account for the surrounding hand–object motion, reducing implausible hand poses and jitter. At inference, two denoising trajectories share the same initial noise: a reference branch with task-level text and hand-selection guidance, and a branch with finger-control conditioning. We combine their clean-motion predictions at each step: 
+
+bxedit 0 = bxref 0 + MF ⊙  bxctrl 0 − bxref 0
+
+ , (2) where MF selects the commanded finger channels. This decoupled sampling preserves unconstrained body, object, and hand motion while editing the specified fingers. 
+
+Finger-specific contact control. Finger articulation and finger contact impose distinct constraints. Given a desig-nated contacting set F⋆, we refine the generated motion by optimizing temporal offsets on the acting arm and fingers: 
+
+min  
+
+> ∆
+
+Ltouch + Lpen + λeLexcl + λaLsmooth . (3) The touch term attracts sampled distal pads of the des-ignated fingers to the moving-part surface during contact frames, using the articulated-part geometry. The penetra-tion term keeps the acting hand’s finger segments outside the moving part; for exclusive-finger instructions, Lexcl ad-ditionally keeps non-designated fingers and the palm away from it; and Lsmooth limits additional wrist and fingertip acceleration. The refinement is applied post hoc to the sam-pled motion, keeping the other hand, the torso, and the ob-ject fixed. This allows contacts that never occur in the train-ing data, such as touching a part with a finger the human did not use. 
+
+3.2. Generation-Guided Agentic Manipulation 
+
+To bridge HOI generation and dexterous robot manipula-tion, FineDex treats generated interactions as actionable pri-ors rather than trajectories to replay. The generated HOI provides hand roles, approach directions, contact configu-rations, and target object articulation, but may not satisfy the robot’s kinematic and physical constraints. We therefore separate instruction constraints from motion guidance: des-ignated hands and fingers restrict admissible contact pro-grams, while the generated HOI guides contact selection and support-hand placement. An agent then adapts contact configurations and execution parameters through test-time practice, without per-instance training. Robot-specific con-straints, such as an unavailable hand, are incorporated into the digital twin. 
+
+Interaction retargeting. We retarget generated hand mo-tion with an interaction mesh over hand and object key-points in the object frame, preserving its Laplacian coor-dinates under joint-limit and non-penetration constraints. The resulting wrist and finger references guide the construc-tion and evaluation of contact programs; replaying them un-4Table 1. HOI generation on ARCTIC. Baselines share the same split and first-frame conditioning; bimanual and whole-body metrics use retrained evaluators. †: MAD-HOI is reimplemented and retrained; EmbodyHOI applies inference-time guidance to our backbone. – indicates unavailable metrics for hand-only methods; Bold /underline: best/second best; →GT: closer to ground truth is better.                                                                                                                                         
+
+> Method Bimanual HOI Whole-body HOI Physical Quality
+> FID ↓R@3 ↑MM-Dist ↓Div →GT Wrist (mm) ↓FID ↓R@3 ↑MM-Dist ↓AVE ↓CR →GT Pen (mm) ↓FS (m/s) ↓
+> GT 0.00 0.788 3.38 10.72 0.0 0.00 0.720 3.79 0.0000 0.100 5.9 0.0022 EmbodyHOI †5.13 0.576 5.24 9.64 77.9 2.32 0.629 4.59 0.0087 0.040 7.6 0.0064 Text2HOI 1.51 0.523 5.54 9.68 92.4 ––––0.090 ––MAD-HOI †5.63 0.583 5.45 9.77 104.8 ––––0.082 ––HandMDM 25.59 0.308 8.35 9.10 161.3 ––––0.022 ––HOIDiNi 8.22 0.477 6.30 8.80 151.6 23.65 0.311 8.14 0.0147 0.168 11.9 0.0462 HOI-FHLI 12.56 0.368 7.31 8.03 143.7 37.65 0.265 9.47 0.0188 0.079 4.6 0.0180 CoDA 8.85 0.507 5.98 9.17 141.4 71.20 0.244 10.72 0.0218 0.103 7.4 0.0433
+> FineDex 0.65 0.701 4.02 10.58 58.3 1.61 0.704 3.83 0.0075 0.092 7.8 0.0030
+
+changed is only one program option. 
+
+Contact programs. We partition the generated object ar-ticulation into S opening or closing segments. A contact program is represented by 
+
+π = ( m, κ 1: S , b, η), (4) where m specifies the manipulating hand and object-motion plan, κs is a part-relative wrist pose and finger configura-tion for segment s, b denotes the supporting-hand behavior, and η contains approach, pressing, timing, and closure pa-rameters. Candidate contacts include those extracted from the generated interaction, geometrically synthesized push or hook contacts, and human grasps from a library built from non-test ARCTIC sequences. Geometric candidates are ranked by their ability to drive the desired hinge mo-tion and their proximity to the generated contact. The HOI prior guides contact selection and support-hand placement without fixing the final contact poses or execution timing. Each program is compiled into wrist and finger targets by smoothly blending free-space motion with object-relative contact configurations initialized from the generated HOI. 
+
+Agent planning and digital-twin practice. We instanti-ate a multimodal planning agent with GPT-6 Astra by de-fault and Claude Fable 5.2 as an alternative (Tab. 3). Given the instruction, object state, rendered HOI keyframes, and structured contact descriptors, the agent proposes candidate contact programs and predicts their outcomes. Each pro-gram is evaluated in parallel digital twins under randomized dynamics. The agent uses task outcomes, contact statistics, and failure renders to diagnose failures and iteratively refine its proposals. Candidates are ranked by empirical success rate, with ties broken by articulation progress, execution penalties, and deviation from the generated HOI prior. The top four goal-reaching candidates undergo additional randomized rehearsals, and the most reliable program π⋆ is selected for execution. The committed program is executed open-loop without online replanning. We evaluate FineDex on floating Wuji hands and a Uni-tree G1 humanoid equipped with Wuji dexterous hands. The selected program is executed using embodiment-specific controllers. 
+
+3.3. FingerBench 
+
+Conventional motion metrics do not assess whether fine-grained instructions are followed. FingerBench evaluates instruction compliance through two tracks. The generation track evaluates hand selection (Switch/Still), finger motion (A1–A5), and finger contact (B1–B4). A1–A5 test single-finger motion, same- and opposite-direction finger motions, bimanual control, and action timing. Success requires the instructed motion while preserving uncommanded fingers. B1–B4 evaluate contact with the reference finger, exclusive contact, counterfactual finger contact, and thumb–index pinching. Success requires the designated contact and cor-responding object articulation, with unintended contacts ex-cluded where specified. The robot track evaluates physical execution using finger-conditioned success rate (FC-SR) and Robo-SR. Both require task completion and sustained contact by the designated finger; FC-SR measures contact dominance by impulse share, while Robo-SR limits the duration of unin-tended contacts by other hand regions. 
+
+## 4. Experiments 
+
+4.1. Experimental Setup 
+
+Dataset. ARCTIC [6] provides 3D body, hand, and ob-ject motion for bimanual interactions with 11 articulated objects. We split ARCTIC into training, validation, and test sets and extract 32-frame windows with a stride of 16. 5Table 2. FingerBench results. Success rates (%). A1–A5: single, same/opposite direction, bimanual, temporal; B1–B4: GT, exclusive, counterfactual, pinch. Switch/Still: hand selection; robot evaluation uses floating Wuji hands and a shared search planner.                                                                                                                                        
+
+> Method Finger Motion Control Finger Contact Control Hand Selection Robotic Execution
+> A1 A2 A3 A4 A5 B1 B2 B3 B4 Switch Still FC-SR ↑Robo-SR ↑
+> GT –––––––––––6.2 5.4 EmbodyHOI †0.0 0.0 0.0 0.0 0.0 16.7 1.2 0.6 0.8 0.0 0.0 0.9 0.9 Text2HOI 0.0 0.0 0.0 0.0 0.0 15.5 0.8 0.4 0.5 1.1 0.0 9.4 6.2 MAD-HOI †0.0 0.0 0.0 0.0 0.0 14.3 1.0 0.4 0.3 8.0 0.0 1.3 0.9 HandMDM 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 5.7 0.0 7.6 7.1 HOIDiNi 0.0 0.0 0.0 0.0 0.0 6.6 1.2 0.4 0.3 0.0 0.0 2.7 0.0 HOI-FHLI 0.0 0.0 0.0 0.0 0.0 7.9 1.2 0.8 1.1 0.0 0.0 1.3 1.3 CoDA 0.0 0.0 0.0 0.0 0.0 2.7 0.2 0.2 0.0 0.0 0.0 2.7 3.1
+> FineDex 92.5 91.2 37.0 73.4 45.6 55.8 60.1 64.9 57.4 83.9 100.0 21.9 19.2
+
+Each window is annotated with hand roles, finger-level con-tacts, object-part regions, and articulation, first generated with Gemini 3.8 and then verified with Claude, which cor-rected 497 of 13,472 annotations, mostly hand assignments and part references. 
+
+Metrics. We evaluate HOI generation using standard met-rics: FID, R-precision (R@3), matching distance (MM-Dist), diversity (Div), wrist error, average variance er-ror (AVE), contact ratio (CR), penetration (Pen), and foot skating (FS). To assess fine-grained controllability, Finger-Bench (Sec. 3.3) evaluates hand selection, finger motion, and designated contacts. Robotic execution is evaluated us-ing task success, finger-conditioned success rate (FC-SR), and Robo-SR under randomized dynamics. 
+
+4.2. HOI Generation 
+
+Quantitative Comparison. For a fair comparison, we re-train all baselines on the same ARCTIC split with our fine-grained annotations and identical first-frame conditioning. As shown in Tab. 1, FineDex achieves the best results across all bimanual and whole-body HOI metrics, reducing FID from 1.51 to 0.65 for bimanual HOI and from 2.32 to 1.61 
+
+for whole-body HOI. It also achieves the lowest foot skat-ing, while maintaining diversity and contact ratio close to ground truth. 
+
+Qualitative Comparison. Fig. 4 compares generated HOI sequences on articulated objects. FineDex produces coordi-nated hand–object motion with sustained contact and sub-stantial object articulation. In contrast, HOI-FHLI[27] and CoDA[21] exhibit limited articulation, while HOIDiNi[23] shows less consistent hand–object coordination in the illus-trated sequence. MAD-HOI[1] and Text2HOI[3] generate hand-only motion. 
+
+4.3. FingerBench Evaluation 
+
+As shown in Tab. 2, we evaluate FingerBench on nine shared ARCTIC objects. Fig. 5 illustrates finger-specific Ours HOI-FHLI CoDA HOIDiNi 
+
+> t
+> Text2HOI MAD-HOI
+
+Figure 4. Qualitative comparison on ARCTIC. FineDex gener-ates coordinated hand–object motion. 
+
+manipulation and instruction-guided control over hand se-lection and contact locations. 
+
+Fine-Grained Controllability and Execution. On Finger-Bench, FineDex achieves 83 .9% Switch and 100 .0% Still success in hand selection, while no baseline exceeds 8.0% 
+
+Switch. Existing HOI generators lack explicit finger-level control mechanisms and score 0% on A1–A5, even when given the same instructions as text. FineDex achieves 37 .0–
+
+92 .5% across these tasks. On counterfactual finger con-6Table 3. Robot execution ablations. (a) Effects of planning, practice, and HOI priors on task success. (b) Effects of finger instructions and instruction-aligned priors on finger-conditioned execution. All results are percentages; parentheses denote unconstrained task success.                                     
+
+> (a) Planning and motion priors Method Floating ↑G1 ↑
+> Direct replay 6.2 13.3 FineDex w/o practice 19.5 11.7 Search planner + priors 48.4 39.1 Astra w/o priors 68.8 35.2 Astra w/o priors or library 59.4 28.9 FineDex (GPT-6 Astra) 75.0 42.2 FineDex (Claude Fable 5.2) 77.3 46.9
+> (b) Finger-conditioned priors Condition Task ↑FC-SR ↑FC/Task ↑
+> Astra (78.1) 6.7 8.6 Astra + finger instr. 40.2 19.4 48.2 + unedited prior 29.7 15.2 51.1 + finger-edited prior 40.3 24.4 60.5
+
+Table 4. Object configuration generalization. Task success (%) under changes in placement, size, and initial articulation of seen objects. W/o priors removes generated HOI while retaining the grasp library and geometric contacts.                         
+
+> Robot Method Placement Size Angle All
+> Floating w/o priors 65.2 59.6 68.8 63.4 FineDex 69.1 68.9 75.8 70.3
+> G1 w/o priors 38.3 29.8 50.0 36.6 FineDex 39.1 32.1 57.8 39.4 Thumb Left Hand + Top-left of the Box Right Hand + Top-right of the Box
+
+Box Espresso Machine    
+
+> Index Finger Middle Finger Ring Finger Little Finger
+
+Figure 5. Qualitative comparison of fine-grained control. 
+
+Top: finger-specific manipulation using different instructed fin-gers. Bottom: hand selection and designated contact control of an articulated object. 
+
+tact, FineDex reaches 64 .9% versus 0.8% for the strongest baseline. In physics-based execution, FineDex achieves 
+
+21 .9% FC-SR and 19 .2% Robo-SR, more than doubling the strongest baseline. Using captured human motion as the prior yields only 6.2% FC-SR, as its finger contacts do not necessarily match the instructions. 
+
+Finger Control Ablations. Tab. 5 evaluates the effects of dual-trajectory sampling and finger-specific contact re-finement. For finger motion, single-trajectory condition-ing causes 11 .9◦ of unintended finger motion and reduces single-finger success from 92 .5% to 41 .2% . In contrast, our 
+
+Table 5. Ablation of finger-level control. Top: single- vs. dual-trajectory sampling for finger motion; Leak. measures changes in uncommanded fingers. Bottom: contact refinement with fingertip attraction (Contact IK), penetration avoidance (+pen.), and the full objective. Other denotes unintended contact rate (%).                                         
+
+> Finger motion A1 A2 A3 A4 A5 Leak. ( ◦)↓
+> Single trajectory 41.2 13.8 3.7 2.2 6.4 11.9 Dual trajectory (ours) 92.5 91.2 37.0 73.4 45.6 0.0 Finger contact B1 B2 B3 B4 Other ↓
+> Contact IK 50.8 1.6 0.8 1.4 97.9 Contact IK + pen. 56.0 1.0 1.0 1.1 98.2 Full objective (ours) 55.8 60.1 64.9 57.4 41.5
+
+masked dual-trajectory sampling preserves uncommanded fingers by construction. Even with our finger-edit train-ing data, HandMDM[2] achieves 65 .6% finger identifica-tion but only 3.8% success, as other fingers move with the commanded one. For finger contact, fingertip attraction alone performs well on B1 but fails under exclusive contact constraints (B2–B4), with unintended contacts in 97 .9% of trials. Our full objective reduces this rate to 41 .5% and substantially improves counterfactual contact success (B3) from 0.8% to 64 .9% .
+
+4.4. Robot Execution 
+
+Object Configuration Generalization. As shown in Tab. 4, FineDex improves task success over Astra-only planning in every condition. The gains are consistent but modest: across 174 shifted configurations, FineDex achieves 54 .8% task success, compared with 50 .0% with-out generated priors, with the same planning budget and no retraining. The largest gain with floating hands occurs un-der object-size variations ( 68 .9% vs. 59 .6% ). 
+
+Role of the HOI Prior. The generated HOI guides con-tact selection rather than prescribing a trajectory to replay. Only 21% of committed programs directly reuse the gener-ated contacts; more often, the prior guides the ranking of 7Left Index & Middle Left Middle Right Espresso Right Microwave Figure 6. Real-world humanoid robot dexterous manipulation. G1 humanoid manipulation with different hand and finger instructions across articulated objects. 
+
+library and synthesized contacts and the placement of the support hand. Among 14 configurations that succeed in at least half of the trials with priors but never without them, 10 use the generated support-hand pose to stabilize the object, a strategy not found without the prior. Removing the grasp library as well leaves no human interaction data and lowers success to 59 .4% (floating) and 28 .9% (G1) in Tab. 3(a); no box trial then succeeds, since geometric synthesis finds no contact that opens the lid. The importance of instruction-aligned priors is further evident in Tab. 3(b). With finger instructions alone, the agent achieves 40 .2% task success and 19 .4% FC-SR. Adding an unedited prior reduces these to 29 .7% and 
+
+15 .2% , respectively, as its suggested contacts may conflict with the instructed finger. In contrast, finger-edited priors restore task success to 40 .3% and improve FC-SR to 24 .4% ,with 60 .5% of successful trials using the designated finger. These results highlight the importance of preserving finger-level intent during robotic execution. 
+
+Planning and Practice. In Tab. 3(a), directly replaying the retargeted generated motion achieves only 6.2% task success, compared with 75 .0% after practice. The agent alone does not close this gap: executing its most confident first-round program without rehearsal succeeds in 19 .5% of floating-hand and 11 .7% of G1 trials. Success grows with the practice budget: stopping after one or two of the four rounds yields 43 .8% and 57 .0% with floating hands ( 25 .0% 
+
+and 30 .5% on G1). Gains level off after about six. Claude Fable 5.2 performs comparably to Astra without model-specific tuning. 
+
+Finger-constrained execution. Tab. 3(b) evaluates finger-specific instructions provided only at test time. Stating the finger raises FC-SR from 6.7% to 19 .4% without a gener-ated prior. A prior that ignores the instruction lowers task success to 29 .7% ; editing it to the designated finger restores task success ( 40 .3% ) and gives the highest FC-SR ( 24 .4% )and FC/Task ( 60 .5% ). 
+
+Real-world dexterous manipulation. Fig. 6 demonstrates FineDex on a physical Unitree G1 humanoid equipped with Wuji Hand 2.2, covering finger-specific left-hand manip-ulation and right-hand operation of an espresso machine and a microwave. The contact programs selected through digital-twin practice are transferred to the robot and exe-cuted open-loop without online replanning. To align the physical setup with simulation, the digital twin selects a robot stance TP that maximizes the fraction of reachable, collision-free wrist poses. The object is then placed at 
+
+(TP )−1TO 
+
+> 1
+
+in the pelvis frame, without further robot-side tuning. Under a fixed object placement, the left-middle-finger program succeeds in all five consecutive trials. The digital twin uses the printed objects’ meshes and masses, with control gains fixed across tasks. 
+
+## 5. Conclusion 
+
+We presented FineDex, a framework that makes finger-level intent both expressible and executable. Trained on our fine-grained annotations, the generator produces coor-dinated human–object motion conditioned on hand, finger, and contact instructions. Rather than directly replaying gen-erated motions, an agent uses them as priors to discover ex-8ecutable contact behaviors through test-time practice. Ex-periments demonstrate state-of-the-art fine-grained control-lability and HOI generation quality, substantial gains in dex-terous manipulation success, and successful execution on a real humanoid robot. We further introduce FingerBench to evaluate instruction following in both generation and phys-ical execution. 
+
+Limitations. Enforcing designated-finger constraints re-duces task success, while limited arm reach and imperfect wrist tracking remain major failure modes on the humanoid. Real-robot behaviors are executed open loop, without on-line feedback; closing this loop is left to future work. 
+
+## References 
+
+[1] Ananya Bal, Kartik Sharma, Ethan Lai, Samyak Tiwari, Liza Dahiya, Chaitanya Chawla, and L´ aszl´ o Attila Jeni. MAD-HOI: masked autoregressive diffusion for generat-ing articulated hand object interactions from text. CoRR ,abs/2608.10162, 2026. [2] L´ eore Bensabath, Mathis Petrovich, and G¨ ul Varol. Text-driven 3d hand motion generation from sign language data. In CVPR , 2026. [3] Junuk Cha, Jihyeon Kim, Jae Shin Yoon, and Seungryul Baek. Text2hoi: Text-guided 3d motion generation for hand-object interaction. In IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2024, Seattle, WA, USA, June 16-22, 2024 , 2024. [4] Chaitanya Chawla, Kartik Sharma, Ananya Bal, Laszlo A. Jeni, and Guanya Shi. Embodyhoi: Embodiment-aware gen-eration of hand-object interactions for humanoid dexterous manipulation, 2026. [5] Sammy Christen, Shreyas Hampali, Fadime Sener, Edoardo Remelli, Tomas Hodan, Eric Sauser, Shugao Ma, and Bugra Tekin. Diffh2o: Diffusion-based synthesis of hand-object interactions from textual descriptions. In SIGGRAPH Asia 2024 Conference Papers, SA 2024, Tokyo, Japan, December 3-6, 2024 , 2024. [6] Zicong Fan, Omid Taheri, Dimitrios Tzionas, Muhammed Kocabas, Manuel Kaufmann, Michael J. Black, and Otmar Hilliges. ARCTIC: A dataset for dexterous bimanual hand-object manipulation. In IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2023, Vancouver, BC, Canada, June 17-24, 2023 , 2023. [7] Yunhai Feng, Natalie Leung, Jiaxuan Wang, Lujie Yang, Haozhi Qi, and Preston Culbertson. A minimalist retargeting-guided reinforcement learning recipe for dexter-ous manipulation. CoRR , abs/2607.11874, 2026. [8] Runhan Huang, Xiangcheng Zhang, Haoyu Chen, Yitong Li, Yen-Jen Wang, Bohan Lyu, Haotian Ye, Chuye Hong, Yix-uan Wang, Chloe Su, et al. Scaling online exploration for robot agents. arXiv preprint arXiv:2610.22496 , 2026. [9] Wenlong Huang, Chen Wang, Ruohan Zhang, Yunzhu Li, Ji-ajun Wu, and Li Fei-Fei. Voxposer: Composable 3d value maps for robotic manipulation with language models. In 
+
+Conference on Robot Learning, CoRL 2023, 6-9 November 2023, Atlanta, GA, USA , 2023. [10] Wenlong Huang, Chen Wang, Yunzhu Li, Ruohan Zhang, and Li Fei-Fei. Rekep: Spatio-temporal reasoning of rela-tional keypoint constraints for robotic manipulation. In Con-ference on Robot Learning, 6-9 November 2024, Munich, Germany , 2024. [11] Brian Ichter, Anthony Brohan, Yevgen Chebotar, Chelsea Finn, Karol Hausman, Alexander Herzog, Daniel Ho, Ju-lian Ibarz, Alex Irpan, Eric Jang, Ryan Julian, Dmitry Kalashnikov, Sergey Levine, Yao Lu, Carolina Parada, Kan-ishka Rao, Pierre Sermanet, Alexander Toshev, Vincent Van-houcke, Fei Xia, Ted Xiao, Peng Xu, Mengyuan Yan, Noah Brown, Michael Ahn, Omar Cortes, Nicolas Sievers, Clay-ton Tan, Sichun Xu, Diego Reyes, Jarek Rettinghouse, Jor-nell Quiambao, Peter Pastor, Linda Luu, Kuang-Huei Lee, Yuheng Kuang, Sally Jesmonth, Nikhil J. Joshi, Kyle Jeffrey, Rosario Jauregui Ruano, Jasmine Hsu, Keerthana Gopalakr-ishnan, Byron David, Andy Zeng, and Chuyuan Kelly Fu. Do as I can, not as I say: Grounding language in robotic af-fordances. In Conference on Robot Learning, CoRL 2022, 14-18 December 2022, Auckland, New Zealand , 2022. [12] Zhenyu Jiang, Yuqi Xie, Kevin Lin, Zhenjia Xu, Weikang Wan, Ajay Mandlekar, Linxi Jim Fan, and Yuke Zhu. Dexmimicgen: Automated data generation for bimanual dexterous manipulation via imitation learning. In IEEE In-ternational Conference on Robotics and Automation, ICRA 2025, Atlanta, GA, USA, May 19-23, 2025 , 2025. [13] Jiaman Li, Jiajun Wu, and C. Karen Liu. Object motion guided human motion synthesis. ACM Trans. Graph. , 2023. [14] Jiaman Li, Alexander Clegg, Roozbeh Mottaghi, Jiajun Wu, Xavier Puig, and C. Karen Liu. Controllable human-object interaction synthesis. In Computer Vision - ECCV 2024 - 18th European Conference, Milan, Italy, September 29-October 4, 2024, Proceedings, Part XLI , 2024. [15] Kailin Li, Puhao Li, Tengyu Liu, Yuyang Li, and Siyuan Huang. Maniptrans: Efficient dexterous bimanual manipula-tion transfer via residual learning. In IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2025, Nashville, TN, USA, June 11-15, 2025 , 2025. [16] Jacky Liang, Wenlong Huang, Fei Xia, Peng Xu, Karol Hausman, Brian Ichter, Pete Florence, and Andy Zeng. Code as policies: Language model programs for embodied control. In IEEE International Conference on Robotics and Automa-tion, ICRA 2023, London, UK, May 29 - June 2, 2023 , 2023. [17] Qiayuan Liao, Yiyang Shao, Junfeng Long, Kevin Zakka, Roberto Horowitz, Pieter Abbeel, and Koushil Sreenath. Su-permimic: Scaling humanoid whole-body control with one differentiable world model. In Conference on Robot Learn-ing , 2026. [18] Yecheng Jason Ma, William Liang, Guanzhi Wang, De-An Huang, Osbert Bastani, Dinesh Jayaraman, Yuke Zhu, Linxi Fan, and Anima Anandkumar. Eureka: Human-level reward design via coding large language models. In The Twelfth In-ternational Conference on Learning Representations, ICLR 2024, Vienna, Austria, May 7-11, 2024 , 2024. [19] Zhao Mandi, Yifan Hou, Dieter Fox, Yashraj Narang, Ajay Mandlekar, and Shuran Song. Dexmachina: Functional retargeting for bimanual dexterous manipulation. CoRR ,abs/2505.24853, 2025. 
+
+9[20] Chaoyi Pan, Changhao Wang, Haozhi Qi, Zixi Liu, Homanga Bharadhwaj, Akash Sharma, Tingfan Wu, Guanya Shi, Jitendra Malik, and Franc ¸ois Robert Hogan. SPIDER: scalable physics-informed dexterous retargeting. CoRR ,abs/2511.09484, 2025. [21] Huaijin Pi, Zhi Cen, Zhiyang Dou, and Taku Komura. Coda: Coordinated diffusion noise optimization for whole-body manipulation of articulated objects. In Advances in Neu-ral Information Processing Systems 38: Annual Conference on Neural Information Processing Systems 2025, NeurIPS 2025, San Diego, CA, USA, December 2-7, 2025 / Mexico City, Mexico, November 30 - December 5, 2025 , 2025. [22] Yuzhe Qin, Yueh-Hua Wu, Shaowei Liu, Hanwen Jiang, Rui-han Yang, Yang Fu, and Xiaolong Wang. Dexmv: Imita-tion learning for dexterous manipulation from human videos. In Computer Vision - ECCV 2022 - 17th European Confer-ence, Tel Aviv, Israel, October 23-27, 2022, Proceedings, Part XXXIX , 2022. [23] Roey Ron, Guy Tevet, Haim Sawdayee, and Amit H. Bermano. Hoidini: Human-object interaction through dif-fusion noise optimization. CoRR , abs/2506.15625, 2025. [24] Chen Wang, Haochen Shi, Weizhuo Wang, Ruohan Zhang, Li Fei-Fei, and C. Karen Liu. Dexcap: Scalable and portable mocap data collection system for dexterous manipulation. In 
+
+Robotics: Science and Systems XX, Delft, The Netherlands, July 15-19, 2024 , 2024. [25] Ruicheng Wang, Jialiang Zhang, Jiayi Chen, Yinzhen Xu, Puhao Li, Tengyu Liu, and He Wang. Dexgraspnet: Alarge-scale robotic dexterous grasp dataset for general ob-jects based on simulation. In IEEE International Conference on Robotics and Automation, ICRA 2023, London, UK, May 29 - June 2, 2023 , 2023. [26] Yufei Wang, Zhou Xian, Feng Chen, Tsun-Hsuan Wang, Yian Wang, Katerina Fragkiadaki, Zackory Erickson, David Held, and Chuang Gan. Robogen: Towards unleashing in-finite data for automated robot learning via generative sim-ulation. In Forty-first International Conference on Machine Learning, ICML 2024, Vienna, Austria, July 21-27, 2024 ,2024. [27] Zhen Wu, Jiaman Li, Pei Xu, and C. Karen Liu. Human-object interaction from human-level instructions. In 
+
+IEEE/CVF International Conference on Computer Vision, ICCV 2025, Honolulu, HI, USA, October 19-25, 2025 , 2025. [28] Yinzhen Xu, Weikang Wan, Jialiang Zhang, Haoran Liu, Zikang Shan, Hao Shen, Ruicheng Wang, Haoran Geng, Yi-jia Weng, Jiayi Chen, Tengyu Liu, Li Yi, and He Wang. Unidexgrasp: Universal robotic dexterous grasping via learning diverse proposal generation and goal-conditioned policy. In IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2023, Vancouver, BC, Canada, June 17-24, 2023 , 2023. [29] Jie Yang, Xuesong Niu, Nan Jiang, Ruimao Zhang, and Siyuan Huang. F-HOI: toward fine-grained semantic-aligned 3d human-object interactions. In Computer Vision - ECCV 2024 - 18th European Conference, Milan, Italy, September 29-October 4, 2024, Proceedings, Part XXXVII , 2024. [30] Huajian Zeng, Lingyun Chen, Jiaqi Yang, Yuantai Zhang, Fan Shi, Peidong Liu, and Xingxing Zuo. Flowhoi: Flow-based semantics-grounded generation of hand-object interactions for dexterous robot manipulation. CoRR ,abs/2602.13444, 2026. [31] Yujia Zeng, Chensheng Peng, Yuxin Chen, Alex Shao, Nathan Jew, and Masayoshi Tomizuka. Robostar: Next-scale autoregressive sign language translation for humanoid robots, 2026. [32] Hui Zhang, Sammy Christen, Zicong Fan, Otmar Hilliges, and Jie Song. Graspxl: Generating grasping motions for di-verse objects at scale. In Computer Vision - ECCV 2024 - 18th European Conference, Milan, Italy, September 29-October 4, 2024, Proceedings, Part XXVI , 2024. [33] Hui Zhang, Sammy Joe Christen, Zicong Fan, Luocheng Zheng, Jemin Hwangbo, Jie Song, and Otmar Hilliges. Arti-grasp: Physically plausible synthesis of bi-manual dexterous grasping and articulation. In International Conference on 3D Vision, 3DV 2024, Davos, Switzerland, March 18-21, 2024 ,2024. 
+
+10
