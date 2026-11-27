@@ -25,3 +25,82 @@ subscriptions:
     stage: A
     diff_threshold_pct: 15
   keyword_recall_mode: or
+  intent_profiles:
+    - tag: humanoid-rl
+      description: >-
+        查找强化学习、人形物体交互、表示学习、模仿学习、联合嵌入预测架构与机器人等领域的论文；课题为 RL with Structured Representation for Humanoid-Object
+        Interaction。
+      enabled: true
+      paper_sources:
+        - arxiv
+        - biorxiv
+      keywords:
+        - keyword: reinforcement learning
+          keyword_cn: 强化学习
+          query: reinforcement learning methods for controlling embodied agents and humanoid robots
+        - keyword: humanoid-object interaction
+          keyword_cn: 人形物体交互
+          query: humanoid robots interacting with objects through whole-body control and manipulation
+        - keyword: representation learning
+          keyword_cn: 表示学习
+          query: representation learning for control, robotics, and embodied decision making
+        - keyword: robotic manipulation
+          keyword_cn: 机器人操作
+          query: robotic manipulation policies that leverage structured representations and reinforcement learning
+        - keyword: structured world models
+          keyword_cn: 结构化世界模型
+          query: structured world models that support planning and reinforcement learning in interactive environments
+        - keyword: embodied learning
+          keyword_cn: 具身学习
+          query: embodied learning agents that couple perception, representation, and action
+      intent_queries:
+        - query: Find papers on reinforcement learning with structured representations for humanoid object interaction.
+          query_cn: 查找面向人形物体交互、使用结构化表示的强化学习论文。
+          enabled: true
+          source: manual
+          note: ''
+        - query: Find work combining object centric representation learning and imitation learning for robot manipulation.
+          query_cn: 查找结合以物体为中心的表示学习与模仿学习进行机器人操作的工作。
+          enabled: true
+          source: manual
+          note: ''
+        - query: Find research on joint embedding predictive architectures for embodied world modeling and control.
+          query_cn: 查找用于具身世界建模与控制的联合嵌入预测架构研究。
+          enabled: true
+          source: manual
+          note: ''
+        - query: >-
+            Find methods that use structured world models to improve sample efficiency in robotic reinforcement
+            learning.
+          query_cn: 查找使用结构化世界模型提升机器人强化学习样本效率的方法。
+          enabled: true
+          source: manual
+          note: ''
+      updated_at: '2026-11-27T07:32:45.752Z'
+source_backends:
+  arxiv:
+    papers_table: arxiv_papers
+    use_vector_rpc: true
+    vector_rpc: match_arxiv_papers
+    vector_rpc_exact: match_arxiv_papers_exact
+    use_bm25_rpc: true
+    bm25_rpc: match_arxiv_papers_bm25
+    sync_table: arxiv_sync_status
+    sync_success_value: success
+    schema: public
+    kind: supabase
+    enabled: true
+    url: https://lyucdwgefyfbmaiopjbk.supabase.co
+    anon_key: sb_publishable_lX-oi64Uxyd7SIVv3_w2Uw_MTOojeKq
+  biorxiv:
+    papers_table: biorxiv_papers
+    use_vector_rpc: true
+    vector_rpc: match_biorxiv_papers_exact
+    vector_rpc_exact: match_biorxiv_papers_exact
+    use_bm25_rpc: true
+    bm25_rpc: match_biorxiv_papers_bm25
+    schema: public
+    kind: supabase
+    enabled: true
+    url: https://lyucdwgefyfbmaiopjbk.supabase.co
+    anon_key: sb_publishable_lX-oi64Uxyd7SIVv3_w2Uw_MTOojeKq
