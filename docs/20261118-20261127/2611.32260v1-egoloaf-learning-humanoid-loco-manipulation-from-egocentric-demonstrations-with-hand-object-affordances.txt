@@ -1,0 +1,1358 @@
+EgoLoAF: Learning Humanoid Loco-Manipulation
+from Egocentric Demonstrations with Hand–Object
+Affordances
+Yiming Zeng1,3,∗,†, Jiangyuxuan Dai1,3,∗, Yuheng Na1,2,3,∗,†, TAN ZHU XUAN1,3, Zihan Lin1, Xinfang Qi1, Shijian Zhang1,
+Chengqi Shi1, Yihan Kuang1, Zhide Zhong2, Junjie He2, Junfeng Li2, Zimu Han1, Naipeng Li1,‡, Haoang Li2,‡
+1 Xi’an Jiaotong University
+2 The Hong Kong University of Science and Technology (Guangzhou)
+3 Xbotics
+Research Team
+∗Equal contribution, †Project leads, ‡Corresponding authors
+Training humanoid vision-language-action (VLA) models relies heavily on costly real-robot teleopera-
+tion. Recent efforts convert egocentric human demonstrations into humanoid training data. However,
+most methods still require wearable motion trackers and leave important hand–object interaction cues
+implicit. Many also mix in real-robot teleoperation data for VLA post-training. These dependencies
+limit scalable data collection, while implicit interaction cues make precise contact harder to learn. To
+overcome these limitations, we propose EgoLoAF, the first paradigm to derive all training data for
+humanoid loco-manipulation directly from egocentric demonstrations without wearable motion trackers.
+We post-train the VLA on the converted data alone, without real-robot teleoperation demonstrations,
+and use explicit hand–object interaction cues to guide action generation. Specifically, to obtain
+humanoid action targets, we estimate torso motion from recorded camera poses and reconstruct both
+hand trajectories from video. From the same recording, we use each hand’s current pose relative to
+the object to represent hand–object affordances. During post-training, we inject these affordances
+into the action expert through cross-attention while keeping the vision-language backbone frozen.
+Additionally, we release 128,400 egocentric demonstration episodes spanning 1,000 hours and 1,284
+tasks, together with converted humanoid action trajectories and rendered robot-view observations.
+Across four real-world tasks, EgoLoAF nearly achieves teleoperation performance (73.1 vs. 74.4 in
+mean Task Progress Score), while achieving a mean 4.03× improvement in data-collection efficiency.
+Project Page: https://egoloaf.github.io/
+1
+Introduction
+Vision-language-action (VLA) models and related policies have made progress in robot manipulation and
+humanoid loco-manipulation (Jiang et al., 2025; Hu et al., 2026; Lambda-humanoid Team, 2026; Na et al.,
+2026; Han et al., 2026; Yang et al., 2026; Zhang et al., 2026b). However, training humanoid VLAs still relies
+heavily on real-robot teleoperation. Each demonstration requires a skilled operator to teleoperate a physical
+humanoid. Resetting the robot and workspace between trials further increases collection time. This makes it
+costly to collect demonstrations across many tasks and environments. To address this challenge, egocentric
+human data offers an alternative.
+Recently, there have been efforts to convert egocentric human demonstrations into training data for humanoid
+loco-manipulation (Shi et al., 2026; Chen et al., 2026; Lambda-humanoid Team, 2026; Zhou et al., 2026).
+However, existing approaches still face two limitations. First, most of these methods use wearable motion
+trackers to obtain humanoid action labels.
+Each recording session involves fitting the trackers to the
+demonstrator and synchronizing their motion measurements with the video. These setup requirements make
+data collection more difficult to scale. Second, most of these methods use converted human trajectories as
+action targets and leave the current hand–object relationship implicit. This makes precise contact harder
+because the policy must infer where the robot’s hands are relative to the object before deciding how to move.
+If the robot misjudges the hand–object relationship, it will reach the right object but still miss the correct
+contact required by the task.
+To overcome these limitations, we propose EgoLoAF, a paradigm that converts egocentric human demon-
+1
+arXiv:2611.32260v1  [cs.RO]  24 Nov 2026
+
+
+Figure 1
+Overview of EgoLoAF, a novel data collection paradigm for humanoids.
+Top: We release 128,400 egocentric
+demonstration episodes spanning 1,000 hours and 1,284 tasks, collected without wearable motion trackers. Bottom
+left: We convert these demonstrations into rendered robot-view observations, torso and hand action targets, and
+current hand–object affordances. The action targets supervise the action expert, while the affordances condition action
+generation. Post-training uses no real-robot teleoperation demonstrations, and the vision-language model (VLM)
+remains frozen. Bottom right: Across four real-world tasks, EgoLoAF nearly matches the teleoperation-trained baseline
+in mean Task Progress Score (TPS; 73.1 vs. 74.4), while more than quadrupling data-collection efficiency on average
+(4.03×).
+strations into humanoid loco-manipulation training data without wearable motion trackers.
+The same
+demonstrations also provide hand–object affordances that guide VLA post-training (Fig. 1). Specifically, we
+reconstruct both hand trajectories from egocentric video and derive a torso trajectory from the recorded camera
+poses. We use the current torso position and orientation as a reference to describe subsequent torso and hand
+motion as humanoid action targets. We also estimate object poses from the same observations and represent
+hand–object affordances using each hand’s current pose relative to the object. To align training observations
+with the humanoid, we replace human arms and hands in the video with rendered robot counterparts. Then,
+we use the rendered observations and action targets for humanoid VLA post-training, and inject hand–object
+affordances into the action expert through cross-attention. During post-training, we update the action expert
+while keeping the VLM backbone frozen.
+Using this egocentric-to-humanoid conversion pipeline, we have constructed and released the EgoLoAF dataset,
+containing 128,400 egocentric demonstration episodes spanning 1,000 hours and 1,284 tasks. The dataset
+includes converted humanoid action trajectories and rendered observations for direct use in humanoid VLA
+training. In our experiments, EgoLoAF policies are post-trained only on egocentric demonstrations without
+real-robot teleoperation data. Across four real-world tasks, EgoLoAF achieves a mean Task Progress Score
+(TPS) of 73.1, close to 74.4 for real-robot teleoperation. At the same time, EgoLoAF collects training data
+2
+
+
+4.03× as efficiently as teleoperation on average.
+Our contributions are as follows.
+1. We propose EgoLoAF, a paradigm that converts egocentric human demonstrations into humanoid
+loco-manipulation training data without wearable motion trackers. Each demonstration provides action
+targets and hand–object affordances, enabling VLA post-training without real-robot teleoperation data.
+2. We release a dataset of 128,400 egocentric demonstration episodes spanning 1,000 hours and 1,284 tasks.
+Each episode includes converted humanoid action trajectories, rendered observations, and hand–object
+affordances for humanoid VLA training.
+3. We propose a post-training method that encodes current object-relative hand poses as interaction
+affordances and injects these affordances into the action expert through cross-attention, while keeping
+the VLM backbone frozen.
+Across four real-world tasks, EgoLoAF nearly matches teleoperation
+performance (73.1 vs. 74.4 mean TPS) while more than quadrupling data-collection efficiency on average
+(4.03×).
+2
+Related work
+Humanoid vision–language–action models.
+Humanoid VLAs learn language-guided loco-manipulation through
+transferable representations and structured action generation. WholeBodyVLA (Jiang et al., 2025) and Ψ0
+(Wei et al., 2026) learn from human videos before adaptation with humanoid trajectories. OpenHLM (Hu
+et al., 2026) studies whole-body teleoperation, VLA adaptation, and heterogeneous co-training. Action designs
+include body-part tokenization, hierarchical generation, and sparse-pose interfaces (Shao et al., 2026; Gu
+et al., 2026; Yang et al., 2026). These interfaces differ in how much whole-body motion the policy predicts
+and how much the controller supplies from compact task-space goals. HEX (Bai et al., 2026) conditions
+actions with dynamics experts, while RISE (Kee et al., 2026) learns behavioral experts and their transitions.
+Interaction-aware policies add whole-body tactile observations (Wang et al., 2026b) or persistent 3D object
+states for action generation and geometric verification (Ren et al., 2026). EgoLoAF constructs humanoid
+action supervision directly from egocentric recordings.
+Humanoid learning from egocentric demonstrations.
+Egocentric transfer requires aligned observations and
+executable humanoid motion targets. HAT (Qiu et al., 2025) and In-N-On (Cai et al., 2025) use shared
+representations and retargeting for human–robot manipulation co-training. EgoVLA (Yang et al., 2025) adapts
+human hand actions to simulated humanoids using robot demonstrations and inverse kinematics. EgoHumanoid
+(Shi et al., 2026) aligns observations and actions for loco-manipulation co-training. EgoHumanoid-V2 (Chen
+et al., 2026) and EgoAlign (Jiang et al., 2026) use wearable tracking and humanoid motion refinement to enable
+human-only target-task training. KODA (Zhou et al., 2026) combines tracker-free motion reconstruction,
+contact-aware hand refinement, and robot-view rendering, but mixes real-robot demonstrations into policy
+training. Other interfaces address active head–hand coordination (Zhao et al., 2026) and whole-body contact
+goals (Xu et al., 2026). λ0 (Lambda-humanoid Team, 2026) scales aligned whole-body human supervision
+through HumanVerse and humanoid mid-training. Transfer methods also differ in where they use geometry.
+Refining a demonstrated trajectory improves the supervision available during training. Explicit affordance
+conditioning provides complementary information: the current hand–object relationship from which the robot
+must act during deployment. Motion refinement and affordance conditioning therefore affect different parts of
+the learning pipeline. KODA’s evaluated recordings include phone depth (Zhou et al., 2026); our annotation
+uses RGB and recorded camera poses, with depth estimated from images. EgoLoAF combines tracker-free
+motion annotation with post-training on converted egocentric data alone. Each recording pairs future torso
+and hand action targets with current object-relative hand poses as affordance conditions.
+3
+Method
+EgoLoAF converts egocentric demonstrations into humanoid action targets, rendered training observations,
+and current hand–object affordances (Fig. 2). We use the converted data to post-train a VLA policy, with
+3
+
+
+affordances conditioning its action expert and the vision-language backbone frozen. At deployment, robot
+measurements provide the same affordance representation, and a whole-body controller executes the predicted
+torso and hand motion.
+Figure 2 Pipeline of EgoLoAF. (a) Hand reconstruction and camera-to-torso mapping produce future torso and hand
+action targets in the current torso frame. (b) Monocular depth is scale-aligned with reconstructed hand geometry for
+object-pose estimation. Current entity poses and object-relative hand poses are encoded as hand–object affordance
+(HOA) tokens. (c) Human hands and forearms are replaced with rendered robot counterparts. (d) With the VLM
+frozen, the trainable action expert predicts action chunks from rendered observations, instructions, and current state,
+conditioned on HOA tokens through cross-attention. The targets in (a) provide action supervision.
+3.1
+Egocentric-to-humanoid data construction
+Each recording contains RGB images It, camera intrinsics Kt, timestamps, and camera poses in a recording-
+local world frame W, without wearable motion trackers. The capture setup is described in Sec. 4. We write
+ATB for the pose of frame B expressed in frame A.
+Motion reconstruction. We calibrate the camera-to-torso transform M = BTC on the target humanoid. The
+recorded camera trajectory defines a virtual torso trajectory as WTBt = WTCtM −1. HaWoR (Zhang et al.,
+2025) reconstructs MANO hand meshes and keypoints (Romero et al., 2017) in the camera frame Ct. We
+define a hand tool center point (TCP) at the midpoint of the thumb and index fingertips, with orientation
+determined by wrist and proximal palm landmarks. The corresponding left and right TCP frames are HL
+t , HR
+t .
+Composing each camera-frame TCP pose with the recorded camera pose gives its world-frame trajectory.
+This representation links human and robot hand motion without matching their joint configurations. We also
+derive binary opening states gh
+t from palm-normalized thumb–index separation, using temporal filtering and
+fixed per-hand calibration bounds; h ∈{L, R} and 1 denotes open.
+Action targets. At observation time to, we use the current torso position and orientation as a fixed reference
+Bo = Bto for subsequent torso and hand motion. Each world-frame pose is expressed in this reference as
+BoTXt = (WTBo)−1WTXt,
+X ∈{B, HL, HR}.
+(1)
+The reference stays fixed throughout each chunk, so torso motion does not change the spatial meaning
+of the hand targets. Each pose is encoded by three normalized translation coordinates and the first two
+rotation-matrix columns (Zhou et al., 2019). At future time tj, let bo,j denote the torso’s nine-dimensional
+pose vector and hL
+o,j, hR
+o,j the corresponding hand vectors. The action target is
+ao,j =
+
+bo,j; hL
+o,j; hR
+o,j; gL
+tj; gR
+tj
+
+∈R29.
+(2)
+Each chunk contains 30 targets, indexed by j = 1, . . . , 30. The current torso and TCP poses provide the pose
+state in the same reference; current opening states are supplied separately.
+4
+
+
+Rendered observations. We fit robot-hand meshes to the reconstructed hands, erase visible human hands and
+forearms, and fill the removed regions with LaMa (Suvorov et al., 2022). Visibility labels from the original
+hand and object masks are transferred to the robot meshes before compositing, preserving hand–object
+occlusions. Each rendered frame eIto is paired with the current state and future action targets from the same
+recording. The supplementary material gives the TCP construction, opening calibration, mesh fitting, and
+visibility-transfer details.
+3.2
+Hand–object affordance construction
+The action targets specify the motion to execute; hand–object affordances describe the configuration from
+which that motion starts. We encode these affordances with current entity poses and the position and
+orientation of each hand relative to each entity (Wang et al., 2026a). For current entity Ek and hand h, the
+relative pose is
+EkTHh = (BoTEk)−1BoTHh.
+(3)
+These relative poses are invariant to a common rigid change of reference. We use four entity slots: the two hand
+TCPs, the manipulated object, and an optional second object. Each entity’s 29-dimensional vector contains
+its type, its pose in Bo, both hand poses in the entity frame, and an opening indicator. The four vectors form
+a 4 × 29 affordance input for the current observation. The opening indicator stores the open/closed state for
+hand rows and −1 for object rows. Entity and feature masks mark missing or invalid measurements. The
+supplementary material gives the complete feature definition.
+Estimation from human demonstrations. We reuse the reconstructed hand poses and opening states. The
+metric variant of Depth Anything V2 (Yang et al., 2024) provides monocular depth, but its scale prior can
+differ from that of the hand estimator. We align the depth map using the median ratio of reconstructed
+hand-surface depth to predicted depth at corresponding visible pixels, with temporal smoothing. F2G-Pose
+(Zhang et al., 2026a) then estimates object poses from RGB, object masks, and the aligned depth. Camera
+poses map the objects into Bo alongside the hands, allowing us to compute Eq. 3. All geometry is estimated
+from the original recordings; inpainted pixels are used only in rendered policy observations.
+3.3
+Affordance-conditioned post-training and deployment
+Affordance conditioning. We post-train π0.5 (Physical Intelligence et al., 2025) with rendered images, task
+instructions, current pose and opening states, and current affordances. An encoder projects each entity
+row and its feature-validity mask into an affordance token; we collect these tokens in Z. Before selected
+action-expert layers, the incoming hidden states Hℓreceive a residual cross-attention update:
+eHℓ= Hℓ+ CAℓ(Hℓ, Z; m).
+(4)
+Here m masks invalid entities, and CAℓincludes query normalization and learned projections. Expert hidden
+states provide the queries; affordance tokens provide the keys and values. Its output is zero when no entities
+are valid. The updated states enter the action-expert layer, giving action generation direct access to current
+hand–object relations while the vision-language backbone remains frozen.
+Post-training. We update the action expert, action input/output projections, and affordance-conditioning
+modules. The action flow-matching loss supervises the 30-target chunks in Eq. 2, excluding invalid target
+components. Affordances enter as current conditions; only future actions are prediction targets.
+Online affordances and execution. At deployment, robot forward kinematics and hand feedback provide
+TCP poses and opening states. F2G-Pose uses head-camera RGB-D to estimate object poses. We encode
+these measurements using the same affordance representation as during post-training. The policy uses robot
+RGB, task instructions, current state, and these affordances to predict the next action chunk. Fixed tool
+transforms convert predicted TCP poses to wrist targets. A frozen ScaleBFM controller (Zeng et al., 2026),
+fine-tuned by KODA (Zhou et al., 2026), tracks these targets together with the torso motion. Hand opening is
+commanded separately. Real-time chunking (Black et al., 2025) and segment blending connect asynchronous
+policy predictions to continuous control. We apply spatial feedback to compensate for torso-tracking errors
+during execution. The supplementary material details this correction, tool transforms, execution timing, and
+the remaining implementation settings.
+5
+
+
+Figure 3 The EgoLoAF dataset. Left: paired original egocentric observations and observations with rendered G1 arms
+and O6 hands, alongside G1 poses with camera frusta. Right: rendered observations illustrate task diversity across
+manipulation goals and objects.
+4
+The EgoLoAF dataset
+We release the EgoLoAF dataset for humanoid loco-manipulation, comprising 128,400 complete, independently
+recorded demonstrations across 1,284 tasks. Each task has 100 demonstrations. After quality filtering, the
+recordings total 1,000 hours.
+4.1
+Collection and task coverage
+We collected demonstrations with a chest-mounted iPhone, without wearable motion trackers. Camera height
+and pitch approximately match those of the G1 head camera. The Stera application from MobileEgo Anywhere
+(Palanisamy et al., 2026) records RGB images, timestamps, camera intrinsics, and camera trajectories. This
+setup leaves both hands free and requires no robot during collection.
+Tasks span different manipulation goals and objects. Examples include object placement, pouring, and
+interactions with containers and cabinets. The collection includes coordinated two-hand manipulation and
+body movements such as walking, turning, and bending. Recordings preserve any transitions between body
+repositioning and object manipulation. Figure 3 shows representative tasks and paired original and rendered
+observations.
+4.2
+Annotations and data organization
+Each demonstration includes the original RGB observations, a task instruction, estimated torso and bilateral
+hand trajectories, and binary hand-opening states. The torso and hand trajectories include both position
+and orientation over time. Object poses and precomputed hand–object affordances are provided for all
+demonstrations. The affordances encode the current hand poses relative to the objects, following Sec. 3.2.
+We also provide rendered observations that replace human arms and hands with G1 arms and O6 dexterous
+hands, matching the configuration used in our real-world experiments. Original and rendered frames share
+timestamps, motion targets, and affordance annotations. All motion and affordance annotations are computed
+from the original recordings.
+The task instruction applies to the complete demonstration, while poses, opening states, and affordances
+are associated with individual observations. Training windows pair the current observation and hand–object
+affordances with subsequent torso and hand motion as action supervision. Continuous trajectories support
+sampling action targets at different prediction horizons without repeating motion reconstruction.
+We checked each demonstration for recording completeness, camera-trajectory quality, arm and hand rendering
+quality, and task completion. Entire demonstrations that failed these checks were discarded.
+For each of the four experimental tasks, post-training uses 100 demonstrations from the released dataset and
+50 collected separately (Sec. 5). Checkpoint selection uses separate held-out recordings. All windows from
+6
+
+
+Figure 4 Real-world humanoid loco-manipulation. Task 1 tests grasping, torso turning, and precise placement of a tissue
+pack into a box. Task 2 combines turning, squatting, and bending to place a tissue pack into a low bin. Task 3 tests
+bimanual coordination and turning when placing both plush toys into a tray. Task 4 combines walking, half-squatting,
+placement inside a cabinet, and closing both doors. Each evaluation batch contains 20 trials per task for each policy.
+these recordings are excluded from post-training.
+5
+Experiments
+We evaluate whether EgoLoAF learns effective humanoid loco-manipulation from egocentric human task
+demonstrations. We compare it with a teleoperation-based baseline under matched training-frame budgets
+(Sec. 5.2), then examine how hand–object affordance conditioning benefits policies trained from human and
+robot demonstrations (Sec. 5.3).
+5.1
+Experimental setup
+Robot platform. We use a Unitree G1 humanoid with LinkerHand O6 dexterous hands and a head-mounted
+Intel RealSense D435 RGB-D camera. We calibrate the camera-to-torso transform and construct online
+affordances following Secs. 3.2 and 3.3. Grounding DINO (Liu et al., 2023) initializes or recovers object regions,
+while mask propagation and SAM refinement (Kirillov et al., 2023) support subsequent pose estimates.
+Execution settings. All policy comparisons share the same frozen whole-body controller and execution settings,
+including spatial feedback. Only the explicitly labeled feedback ablations in the supplementary material
+disable this additional correction.
+Real-world tasks. Following the evaluation practice of prior studies (Shi et al., 2026; Chen et al., 2026), we
+select four real-world tasks to evaluate increasingly complex combinations of hand manipulation and body
+motion. These tasks range from precise placement to bimanual manipulation and long-horizon sequences
+involving turning, walking, bending, and squatting (Fig. 4):
+1. Tissue-to-Box. This precision task requires the robot to grasp a tissue pack on the table, turn, and place
+it precisely into a box.
+2. Tissue-to-Bin. The robot grasps a tissue pack, then turns, squats, and bends to place it into a low bin,
+combining fine hand manipulation with whole-body motion.
+3. Pick-Turn-Place. The robot sequentially grasps two plush toys on the table, one in each hand, then turns
+and places both into a tray, combining coordinated two-hand manipulation with torso motion.
+4. Tissue-to-Cabinet. The robot grasps a tissue pack from the table, turns and walks toward a cabinet, then
+7
+
+
+EgoLoAF (ego data)
+Teleoperation baseline (robot data)
+Tissue
+to box
+Tissue
+to bin
+Pick, turn,
+place plush
+Tissue
+to cabinet
+0
+20
+40
+60
+80
+100
+Mean TPS (higher is better)
+81
+70
+75.4
+65.8
+81.4
+75.2
+74.8
+66
+(a) Task performance.
+Tissue
+to box
+Tissue
+to bin
+Pick, turn,
+place plush
+Tissue
+to cabinet
+0
+2
+4
+6
+8
+10
+Person-hours (lower is better)
+0.50
+0.63
+0.71
+1.04
+1.17
+2.00
+1.83
+8.33
+2.33 ×
+3.20 ×
+2.59 ×
+8.00 ×
+(b) Data collection effort.
+Figure 5 Comparison with teleoperation. a Mean TPS (0–100, ↑), aggregated across evaluation batches of 20 trials per
+task. EgoLoAF uses 150 egocentric human demonstrations per task; robot training data match their frame counts.
+Both methods use spatial feedback; the teleoperation baseline has no affordance input. b Acquisition person-hours
+at matched training-frame budgets (↓): one collector for ego data and two for teleoperation. Arrow labels give the
+teleoperation/ego person-hour ratio for each task.
+With affordances
+Without affordances
+Tissue
+to box
+Tissue
+to bin
+Pick, turn,
+place plush
+Tissue
+to cabinet
+0
+20
+40
+60
+80
+100
+Mean TPS
+81
+70
+75.4
+65.8
+64.2
+55.8
+50.2
+42.5
+Figure 6 Effect of affordances on human-data policies. Mean TPS (0–100, ↑), aggregated across evaluation batches of
+20 trials per task/configuration, using the same 150 egocentric human demonstrations per task. Policies are trained
+separately with and without affordances; both use spatial feedback. All four tasks use affordances in the conditioned
+policy.
+half-squats to place it inside and closes both cabinet doors. This long-horizon task combines sequential
+hand manipulation with turning, walking, and squatting.
+Evaluation protocol. For a fair comparison, each evaluation batch contains 20 trials per task for each policy
+checkpoint under the same protocol with randomized initial scene configurations. Following prior progress-
+based evaluations (Han et al., 2026; Chen et al., 2026; Physical Intelligence et al., 2025), we report the mean
+Task Progress Score (TPS), aggregated across multiple evaluation batches. Each trial’s TPS is the sum of
+the points awarded for completed subtasks, with a maximum of 100. Table 1 lists the subtasks and point
+allocations, fixed before testing.
+Training data. For each task, we post-train a separate π0.5 policy (Physical Intelligence et al., 2025) on 150
+egocentric human demonstrations. Validation recordings are held out separately for checkpoint selection.
+8
+
+
+Table 1 Task Progress Score criteria. Each task totals 100 points. For repeated subtasks, scores are written as points per
+object × object count.
+Task
+Subtask
+Score
+Tissue-to-Box
+Grasp the tissue pack
++30
+Move tissue above the box
++30
+Release tissue into the box
++40
+Tissue-to-Bin
+Grasp the tissue pack
++25
+Turn toward the bin
++25
+Squat down
++25
+Place tissue in the bin
++25
+Pick-Turn-Place
+Grasp a plush toy
++20 × 2
+Turn and move toys over the tray
++20
+Release a toy into the tray
++20 × 2
+Tissue-to-Cabinet
+Grasp the tissue pack
++15
+Turn toward the cabinet
++15
+Walk to the cabinet
++15
+Half-squat
++15
+Place tissue in the cabinet
++20
+Close a cabinet door
++10 × 2
+5.2
+Comparison with teleoperation
+We first assess whether a policy post-trained solely on egocentric human task demonstrations can learn
+effective robot actions. The teleoperation baseline is trained on demonstrations collected with the same G1,
+recording head-camera images and body and hand states, with the same number of training frames as the ego
+data for each task. Both methods use the action representation and policy/controller architecture in Secs. 3.1
+and 3.3, with matched optimization budgets. EgoLoAF additionally uses affordances on all four tasks, while
+the teleoperation baseline uses no affordance input.
+EgoLoAF achieves a four-task mean TPS of 73.1, compared with 74.4 for teleoperation (Fig. 5a). It trails the
+baseline by 0.4 points on box and 5.2 points on bin, and exceeds it by 0.6 points on plush. On the long-horizon
+Tissue-to-Cabinet task, it achieves 65.8 TPS compared with 66.0 for teleoperation. These results show that
+egocentric human task demonstrations provide effective supervision for humanoid loco-manipulation, including
+a sequence that combines grasping, turning, walking, squatting, placement, and door closing. The comparison
+evaluates the complete pipelines; Sec. 5.3 isolates the effect of affordance conditioning within each data source.
+We also evaluate data-collection efficiency using person-hours (Chi et al., 2024), defined as the total working
+time, in hours, summed across all participants. For matched training-frame budgets, we count the time spent
+on setup, demonstration collection, failed attempts, and resets. Automated processing time that requires no
+human involvement is excluded from person-hours. Egocentric collection uses one person, while teleoperation
+uses two.
+Figure 5b shows a mean 4.03× improvement in acquisition efficiency. Among the four tasks, Tissue-to-Cabinet
+shows the largest gain (8.00×). Resetting the humanoid and task scene is time-consuming during teleoperation,
+especially for long-horizon tasks, which contributes to the larger efficiency gap on this task. Collection details
+are provided in the supplementary material.
+5.3
+Ablation: effect of hand–object affordances
+We next isolate the effect of hand–object affordances within each data source, using policies trained from
+human and robot demonstrations.
+9
+
+
+5.3.1
+Human-data policies
+Policies with and without affordance inputs use identical training frames, targets, masks, optimization budgets,
+and execution settings. Figure 6 compares these policies on all four tasks, in the same order as the main
+comparison.
+Adding affordances raises the four-task mean TPS from 53.2 to 73.1, a gain of 19.9 points. TPS increases from
+64.2 to 81.0 on Tissue-to-Box and from 55.8 to 70.0 on Tissue-to-Bin. Larger gains occur on Pick-Turn-Place,
+from 50.2 to 75.4 (+25.2), and Tissue-to-Cabinet, from 42.5 to 65.8 (+23.3). The improvement narrows the
+gap to the affordance-free teleoperation baseline (74.4 TPS) from 21.2 to 1.3 points.
+Pick-Turn-Place and Tissue-to-Cabinet require multiple object interactions combined with body repositioning.
+In observed executions, affordance conditioning helps the robot adjust reaching and placement to the current
+hand–object relationship. This improves contact and coordination between hand actions and body motion
+across successive task stages. These observations explain why pairing converted motion targets with current
+affordance conditions makes egocentric supervision more effective for robot manipulation.
+5.3.2
+Robot-data policies
+Affordances also improve policies trained from robot demonstrations (Table 2). With robot training data,
+optimization budgets, and execution settings held fixed, the four-task mean TPS increases from 74.4 to 86.3,
+a gain of 11.9 points. TPS rises from 81.4 to 90.0 on Tissue-to-Box, from 75.2 to 80.0 on Tissue-to-Bin, and
+from 66.0 to 75.0 on Tissue-to-Cabinet. The largest gain again occurs on Pick-Turn-Place, from 74.8 to 100.0
+(+25.2).
+The improvement on robot data shows that HOA remains useful when training and deployment use the same
+embodiment. Even with robot motion targets, the policy must determine how its hands should approach and
+contact objects from the current observation. Providing the hand–object relationship explicitly helps guide
+these actions, complementing trajectory supervision for both human-data and robot-data policies.
+Table 2 Affordances for robot-data policies. Mean TPS (0–100, ↑), with 20 trials per task per evaluation batch. Both
+policies use identical robot training data and spatial feedback. Mean weights all four tasks equally; Cabinet denotes
+Tissue-to-Cabinet.
+Robot policy
+Box
+Bin Plush Cabinet Mean
+w/o affordances
+81.4 75.2
+74.8
+66.0
+74.4
+with affordances
+90.0
+80.0
+100.0
+75.0
+86.3
+6
+Conclusion
+We presented EgoLoAF, a paradigm that converts egocentric human demonstrations into humanoid loco-
+manipulation training data without wearable motion trackers. Each recording provides coordinated torso and
+hand motion as action supervision, rendered robot-view observations, and current hand–object affordances. We
+post-train the VLA entirely on the converted data, without real-robot teleoperation demonstrations. We inject
+the affordances into the action expert through cross-attention while keeping the vision-language backbone
+frozen. We also release 128,400 egocentric demonstration episodes spanning 1,000 hours and 1,284 tasks,
+together with their converted humanoid training data. Across four real-world tasks, EgoLoAF nearly matches
+the teleoperation-trained baseline (73.1 vs. 74.4 mean TPS), while more than quadrupling data-collection
+efficiency on average (4.03×).
+LLM Usage Statement
+We used OpenAI Codex to assist with literature research, language polishing and translation of the manuscript,
+and the organization of supplementary materials. The authors reviewed and verified all AI-assisted content,
+including the cited references, and take full responsibility for the final manuscript and supplementary materials.
+10
+
+
+References
+Shuanghao Bai, Meng Li, Xinyuan Lv, Jiawei Wang, Xinhua Wang, Fei Liao, Chengkai Hou, Langzhe Gu, Bowei
+Zhang, Wanqi Zhou, Kun Wu, Ziluo Ding, Zhiyuan Xu, Lei Sun, Shanghang Zhang, Zhengping Che, Jian Tang, and
+Badong Chen. HEX: Humanoid-aligned experts for cross-embodiment whole-body manipulation. arXiv preprint
+arXiv:2604.07993, 2026. URL https://arxiv.org/abs/2604.07993.
+Kevin Black, Manuel Y. Galliker, and Sergey Levine. Real-time execution of action chunking flow policies. arXiv
+preprint arXiv:2506.07339, 2025. URL https://arxiv.org/abs/2506.07339.
+Xiongyi Cai, Ri-Zhao Qiu, Geng Chen, Lai Wei, Isabella Liu, Tianshu Huang, Xuxin Cheng, and Xiaolong Wang.
+In-N-On: Scaling egocentric manipulation with in-the-wild and on-task data. arXiv preprint arXiv:2511.15704, 2025.
+URL https://arxiv.org/abs/2511.15704.
+Jin Chen, Yiming Jiang, Chongyang Xu, Modi Shi, Shijia Peng, Li Chen, Tianyu Li, Mu Xu, Yilun Chen, Steven
+Hoi, and Hongyang Li. EgoHumanoid-V2: Human-to-humanoid transfer of coordinated whole-body skills for
+loco-manipulation. arXiv preprint arXiv:2609.37181, 2026. URL https://arxiv.org/abs/2609.37181.
+Cheng Chi, Zhenjia Xu, Chuer Pan, Eric Cousineau, Benjamin Burchfiel, Siyuan Feng, Russ Tedrake, and Shuran
+Song. Universal manipulation interface: In-the-wild robot teaching without in-the-wild robots. arXiv preprint
+arXiv:2402.10329, 2024. URL https://arxiv.org/abs/2402.10329.
+Langzhe Gu, Chengkai Hou, Meng Li, Xinhua Wang, Xinyuan Lv, Shuanghao Bai, Guangrun Li, Jingyang He,
+Ziluo Ding, Zhiyuan Xu, Ning Ding, Kuan Cheng, Jian Tang, Shanghang Zhang, and Zhengping Che. HAF-VLA:
+Hierarchical action flow framework for humanoid vision-language-action control. arXiv preprint arXiv:2610.26584,
+2026. URL https://arxiv.org/abs/2610.26584.
+Zimu Han, Yiming Zeng, Jiyao Zhang, Zihao Zhao, Yuanfei Wang, Yixiang Jin, Shiqi Li, Shuangben Chen, Wei
+Huang, Ruodai Li, Hui Shen, and Hao Dong.
+HIL-UMI: Bringing human-in-the-loop post-training of vision-
+language-action models to universal manipulation interface. arXiv preprint arXiv:2609.20659, 2026. URL https:
+//arxiv.org/abs/2609.20659.
+Yingdong Hu, Haodong Zhu, Boyuan Zheng, Yihang Hu, Tong Zhang, Zunhao Chen, Junming Zhao, Ruiqian Nai,
+and Yang Gao. OpenHLM: An empirical recipe for whole-body humanoid loco-manipulation. arXiv preprint
+arXiv:2606.22174, 2026. URL https://arxiv.org/abs/2606.22174.
+Haoran Jiang, Jin Chen, Qingwen Bu, Li Chen, Modi Shi, Yanjie Zhang, Delong Li, Chuanzhe Suo, Chuang Wang,
+Zhihui Peng, and Hongyang Li. WholeBodyVLA: Towards unified latent VLA for whole-body loco-manipulation
+control. arXiv preprint arXiv:2512.11047, 2025. URL https://arxiv.org/abs/2512.11047.
+Yiming Jiang, Jin Chen, Chongyang Xu, Yilun Chen, Aimin Hao, and Yisheng He.
+EgoAlign: Bridging the
+human-humanoid gap for long-range loco-manipulation.
+arXiv preprint arXiv:2609.38046, 2026.
+URL https:
+//arxiv.org/abs/2609.38046.
+Hogun Kee, Wooseok Oh, Jooyoung Kim, Jaeyeon Jeong, Hyewoo Jung, Hyeondal Son, Hosung Lee, Minjae Kang,
+and Songhwai Oh. Learning humanoid loco-manipulation with responsibility-induced specialized experts for vision-
+language-action models. In IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), 2026.
+URL https://rllab-snu.github.io/projects/RISE/.
+Alexander Kirillov, Eric Mintun, Nikhila Ravi, Hanzi Mao, Chloe Rolland, Laura Gustafson, Tete Xiao, Spencer
+Whitehead, Alexander C. Berg, Wan-Yen Lo, Piotr Dollár, and Ross Girshick. Segment anything. arXiv preprint
+arXiv:2304.02643, 2023. URL https://arxiv.org/abs/2304.02643.
+Lambda-humanoid Team. λ0: Scaling open-world egocentric human data for humanoid loco-manipulation. arXiv
+preprint arXiv:2610.18950, 2026. URL https://arxiv.org/abs/2610.18950.
+Shilong Liu, Zhaoyang Zeng, Tianhe Ren, Feng Li, Hao Zhang, Jie Yang, Qing Jiang, Chunyuan Li, Jianwei Yang,
+Hang Su, Jun Zhu, and Lei Zhang. Grounding DINO: Marrying DINO with grounded pre-training for open-set
+object detection. arXiv preprint arXiv:2303.05499, 2023. URL https://arxiv.org/abs/2303.05499.
+Yuheng Na, Zhide Zhong, Junjie He, Junfeng Li, Haodong Yan, Jiaan Wang, Jiaguan Zhu, Yangyang Zheng, Tianyu
+Huang, and Haoang Li. EvoMem-VLA: State-evolution memory for long-horizon robot manipulation. arXiv preprint
+arXiv:2610.05418, 2026. URL https://arxiv.org/abs/2610.05418.
+11
+
+
+Senthil Palanisamy, Abhishek Anand, Satpal Singh Rathore, Pratyush Patnaik, Shubhanshu Khatana, and Ekaksh
+Janweja. MobileEgo Anywhere: Open infrastructure for long horizon egocentric data on commodity hardware. arXiv
+preprint arXiv:2605.05945, 2026. URL https://arxiv.org/abs/2605.05945.
+Physical Intelligence, Kevin Black, Noah Brown, James Darpinian, Karan Dhabalia, Danny Driess, Adnan Esmail,
+Michael Equi, Chelsea Finn, Niccolo Fusai, Manuel Y. Galliker, Dibya Ghosh, Lachy Groom, Karol Hausman,
+Brian Ichter, Szymon Jakubczak, Tim Jones, Liyiming Ke, Devin LeBlanc, Sergey Levine, Adrian Li-Bell, Mohith
+Mothukuri, Suraj Nair, Karl Pertsch, Allen Z. Ren, Lucy Xiaoyang Shi, Laura Smith, Jost Tobias Springenberg,
+Kyle Stachowicz, James Tanner, Quan Vuong, Homer Walke, Anna Walling, Haohuan Wang, Lili Yu, and Ury
+Zhilinsky. π0.5: A vision-language-action model with open-world generalization. arXiv preprint arXiv:2504.16054,
+2025. URL https://arxiv.org/abs/2504.16054.
+Ri-Zhao Qiu, Shiqi Yang, Xuxin Cheng, Chaitanya Chawla, Jialong Li, Tairan He, Ge Yan, David J. Yoon, Ryan
+Hoque, Lars Paulsen, Ge Yang, Jian Zhang, Sha Yi, Guanya Shi, and Xiaolong Wang. Humanoid policy ∼human
+policy. In Proceedings of the 9th Conference on Robot Learning, volume 305 of Proceedings of Machine Learning
+Research, pages 2888–2906. PMLR, 2025. URL https://proceedings.mlr.press/v305/qiu25a.html.
+Peng Ren, Haoyang Ge, Jiang Zhao, Cong Huang, Yukun Shi, Pei Chi, and Kai Chen. Closing the loop in humanoid
+VLA: Persistent 3D object tokens for verifiable loco-manipulation. arXiv preprint arXiv:2607.18016, 2026. URL
+https://arxiv.org/abs/2607.18016.
+Javier Romero, Dimitrios Tzionas, and Michael J. Black. Embodied hands: Modeling and capturing hands and bodies
+together. ACM Transactions on Graphics, 36(6):245:1–245:17, 2017. URL https://mano.is.tuebingen.mpg.de/.
+Wenxin Shao, Siqi Chai, Kun Li, Kerou Zhang, Xinzhou Jiang, Wei Xu, and Qiang Liu. Humanoid loco-manipulation
+with discrete VLA model. arXiv preprint arXiv:2609.35709, 2026. URL https://arxiv.org/abs/2609.35709.
+Modi Shi, Shijia Peng, Jin Chen, Haoran Jiang, Tianyu Li, Di Huang, Ping Luo, Hongyang Li, and Li Chen.
+EgoHumanoid: Unlocking in-the-wild loco-manipulation with robot-free egocentric demonstration. arXiv preprint
+arXiv:2602.10106, 2026. URL https://arxiv.org/abs/2602.10106.
+Roman Suvorov, Elizaveta Logacheva, Anton Mashikhin, Anastasia Remizova, Arsenii Ashukha, Aleksei Silvestrov,
+Naejin Kong, Harshith Goka, Kiwoong Park, and Victor Lempitsky. Resolution-robust large mask inpainting with
+fourier convolutions. In Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision, pages
+2149–2159, 2022. URL https://openaccess.thecvf.com/content/WACV2022/html/Suvorov_Resolution-Robust_
+Large_Mask_Inpainting_With_Fourier_Convolutions_WACV_2022_paper.html.
+Zhi Wang, Botao He, Kelin Yu, Seungjae Lee, Ruohan Gao, Furong Huang, and Yiannis Aloimonos. HumanEgo:
+Zero-shot robot learning from minutes of human egocentric videos. arXiv preprint arXiv:2605.24934, 2026a. URL
+https://arxiv.org/abs/2605.24934.
+Zihao Wang, Shutong Liu, Siqi Zheng, Liu Cao, Ruoqu Chen, Rundong Liu, Yanchao Yang, and Mengdi Xu. Uni-VLaT:
+Whole-body tactile adaptation of VLA policies for humanoid loco-manipulation. arXiv preprint arXiv:2609.35450,
+2026b. URL https://arxiv.org/abs/2609.35450.
+Songlin Wei, Hongyi Jing, Boqian Li, Zhenyu Zhao, Jiageng Mao, Zhenhao Ni, Sicheng He, Jie Liu, Xiawei Liu, Kaidi
+Kang, Sheng Zang, Weiduo Yuan, Marco Pavone, Di Huang, and Yue Wang. Ψ0: An open foundation model towards
+universal humanoid loco-manipulation. arXiv preprint arXiv:2603.12263, 2026. URL https://arxiv.org/abs/2603.
+12263.
+Xiaomeng Xu, Han Zhang, Zhian Ruan, Xiaofeng Guo, Jinkun Cao, Ruihan Yang, Carmelo Sferrazza, Shuran Song,
+and Guanya Shi. PanTact: Teaching whole-body dexterity with a wearable contact interface. arXiv preprint
+arXiv:2610.12558, 2026. URL https://arxiv.org/abs/2610.12558.
+Lihe Yang, Bingyi Kang, Zilong Huang, Zhen Zhao, Xiaogang Xu, Jiashi Feng, and Hengshuang Zhao. Depth Anything
+V2. arXiv preprint arXiv:2406.09414, 2024. URL https://arxiv.org/abs/2406.09414.
+Ruihan Yang, Qinxi Yu, Yecheng Wu, Rui Yan, Borui Li, An-Chieh Cheng, Xueyan Zou, Yunhao Fang, Xuxin
+Cheng, Ri-Zhao Qiu, Hongxu Yin, Sifei Liu, Song Han, Yao Lu, and Xiaolong Wang. EgoVLA: Learning vision-
+language-action models from egocentric human videos.
+arXiv preprint arXiv:2507.12440, 2025.
+URL https:
+//arxiv.org/abs/2507.12440.
+Zhaohui Yang, Quanbao Lin, Chengqi Shi, Zhenglang Weng, Jicheng Lin, Boyu Chen, Tengjie Zhu, Guanzhu Ren, Jiahao
+Xu, Yang Feng, Xiaokang Yang, and Yao Mu. SP-HLM: Sparse-pose-driven motion generation and whole-body control
+for humanoid loco-manipulation. arXiv preprint arXiv:2610.30044, 2026. URL https://arxiv.org/abs/2610.30044.
+12
+
+
+Weishuai Zeng, Kangning Yin, Xiaojie Niu, Shunlin Lu, Weixiang Zhong, Jiahe Chen, Feiyu Jia, Xiao Chen, Zirui
+Wang, Furui Xu, Ming Zhou, Kailin Li, Weinan Zhang, He Wang, Li Yi, Dahua Lin, Jiangmiao Pang, and Jingbo
+Wang. Scaling behavior foundation model for humanoid robots. arXiv preprint arXiv:2607.15163, 2026. URL
+https://arxiv.org/abs/2607.15163.
+Chaoning Zhang, Dongshen Han, Yu Qiao, Jung Uk Kim, Sung-Ho Bae, Seungkyu Lee, and Choong Seon Hong. Faster
+segment anything: Towards lightweight SAM for mobile applications. arXiv preprint arXiv:2306.14289, 2023. URL
+https://arxiv.org/abs/2306.14289.
+Jinglei Zhang, Jiankang Deng, Chao Ma, and Rolandos Alexandros Potamias. HaWoR: World-space hand motion
+reconstruction from egocentric videos. arXiv preprint arXiv:2501.02973, 2025. URL https://arxiv.org/abs/2501.
+02973.
+Jinyu Zhang, Haitao Lin, Jiashu Hou, Xiangyang Xue, and Yanwei Fu. F2G-Pose: Geometry-aware foundation feature
+lifting for direct RGB-D category-level object pose estimation. arXiv preprint arXiv:2610.31623, 2026a. URL
+https://arxiv.org/abs/2610.31623.
+Jiyao Zhang, Zimu Han, Junhan Wang, Xionghao Wu, Shihong Lin, Jinzhou Li, Hongwei Fan, Ruihai Wu, Dongjiang
+Li, and Hao Dong. HiPolicy: Hierarchical multi-frequency action chunking for policy learning. In Computer Vision –
+ECCV 2026, volume 17038 of Lecture Notes in Computer Science, pages 359–376. Springer Nature Switzerland, 2026b.
+doi: 10.1007/978-3-032-37447-9_20. URL https://link.springer.com/chapter/10.1007/978-3-032-37447-9_20.
+Zehui Zhao, Yuxuan Zhao, Gaojing Zhang, Chenxi Liu, Maolin Zheng, and Wenzhao Lian. HALOMI: Learning
+humanoid loco-manipulation with active perception from human demonstrations. arXiv preprint arXiv:2606.18772,
+2026. URL https://arxiv.org/abs/2606.18772.
+Yi Zhou, Connelly Barnes, Jingwan Lu, Jimei Yang, and Hao Li. On the continuity of rotation representations
+in neural networks.
+In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recog-
+nition, 2019. URL https://openaccess.thecvf.com/content_CVPR_2019/html/Zhou_On_the_Continuity_of_
+Rotation_Representations_in_Neural_Networks_CVPR_2019_paper.html.
+Zibo Zhou, Yueru Chen, Junsong Wu, Weiji Xie, Qingyao Xu, Sheng Yin, Shiqing Wang, Jiyuan Shi, Siheng Chen,
+Chenjia Bai, and Xuelong Li. KODA: Kinematics–observation data alignment for humanoid learning from human
+egocentric demonstration. arXiv preprint arXiv:2610.21152, 2026. URL https://arxiv.org/abs/2610.21152.
+13
+
+
+Appendix
+This appendix details data acquisition and conversion (Sec. A), affordance-conditioned training (Sec. B), robot
+execution (Sec. C), evaluation protocols and additional results (Sec. D), and dataset coverage and organization
+(Sec. E).
+A
+Data acquisition and action construction
+We collect RGB images, camera intrinsics, timestamps, and camera poses using a chest-mounted iPhone
+running Stera from MobileEgo Anywhere (Palanisamy et al., 2026). Camera height and pitch approximately
+match the robot head camera. HaWoR (Zhang et al., 2025) reconstructs camera-frame MANO (Romero et al.,
+2017) hand geometry. Observations and motion trajectories are aligned using recorded timestamps, with
+training samples organized under a 30 Hz convention.
+A.1
+Camera, torso, and hand trajectories
+Let M = BTC be the calibrated camera-to-torso transform on the target humanoid. The recorded camera
+trajectory defines the virtual torso trajectory as
+WTBt = WTCtM −1.
+(S1)
+At observation time to, we fix Bo = Bto and express subsequent poses in that frame:
+BoTXt = (WTBo)−1WTXt,
+X ∈{B, HL, HR}.
+(S2)
+For a camera-frame hand TCP pose, the complete mapping is
+BoTHh
+t = (WTBo)−1WTCt
+CtTHh
+t .
+(S3)
+The reference Bo stays fixed throughout each action chunk. Each pose uses three translation coordinates and
+the first two rotation-matrix columns; we denote its normalized encoding by ¯ϕ. The torso and two hand poses,
+together with two opening states, form the 29-dimensional action defined in the main paper.
+A.2
+Hand tool frame
+Let pi be the 21 predicted hand keypoints (Fig. S1). The TCP uses the wrist p0, thumb carpometacarpal
+(CMC) joint p1, index metacarpophalangeal (MCP) joint p5, and thumb and index fingertips p4, p8:
+o = (p4 + p8)/2,
+x =
+p5 −p1
+∥p5 −p1∥,
+u = (p1 + p5)/2 −p0,
+˜y =
+u −x(x⊤u)
+∥u −x(x⊤u)∥,
+z =
+x × ˜y
+∥x × ˜y∥,
+y = z × x,
+TH =
+x
+y
+z
+o
+0
+0
+0
+1
+
+.
+(S4)
+This follows the virtual-gripper construction in HumanEgo (Wang et al., 2026a), with the selected proximal
+thumb reference. We temporally smooth valid hand trajectories in world coordinates and construct orthonormal
+TCP frames. Missing or unreliable observations are masked out of action supervision. The robot-side tool
+mapping is given in Sec. C.
+14
+
+
+H L
+t
+Figure S1 Hand keypoints and TCP frame. Dorsal view of a HaWoR-reconstructed MANO mesh with all 21 keypoints
+and five finger chains. The five labeled landmarks define the TCP frame HL
+t . Its origin o is the fingertip midpoint; red,
+green, and blue arrows show the projected x, y, z axes.
+A.3
+Automatic hand-opening labels
+We derive binary hand-opening labels from the thumb–index fingertip distance normalized by palm length.
+For hand h, let p9 denote the middle-finger MCP joint. We temporally smooth the aperture ratio rh
+t to obtain
+erh
+t , then normalize it using fixed per-hand calibration bounds rh
+min and rh
+max, shared across episodes:
+rh
+t = ∥ph
+4,t −ph
+8,t∥2
+∥ph
+9,t −ph
+0,t∥2
+,
+uh
+t = clip
+ erh
+t −rh
+min
+rhmax −rh
+min
+, 0, 1
+
+,
+gh
+t = 1[uh
+t ≥0.5].
+(S5)
+Here, gh
+t = 1 denotes an open hand and gh
+t = 0 a closed hand.
+A.4
+Rendered robot observations
+We generate robot-view observations by replacing human hands and forearms with O6 hands and G1 arms.
+We fit the robot-hand meshes to the reconstructed MANO geometry through landmark alignment and pose
+optimization under the robot’s joint constraints. The fitted configurations determine the robot appearance in
+each frame.
+To preserve hand–object occlusions, we transfer surface visibility from the reconstructed human hands to
+the robot meshes. MobileSAM (Zhang et al., 2023) provides visible hand and object masks from the original
+RGB frame. We project the MANO meshes into the image and render their depth to identify the frontmost
+hand surfaces. Frontmost surfaces supported by the hand masks receive visible labels, while projected hand
+surfaces covered by the visible object mask receive object-occlusion labels. We establish correspondence
+between MANO and O6 surfaces using the local structure of the palm and individual fingers. Each rendered
+robot-hand fragment then retrieves its visibility label from the corresponding location on the posed MANO
+15
+
+
+surface. A fragment is hidden when it carries an object-occlusion label and its image projection overlaps the
+visible object mask. A Z-buffer resolves occlusions within and between the rendered robot hands.
+For image compositing, we remove the visible human hands and forearms and use LaMa (Suvorov et al., 2022)
+to complete the exposed regions. We then composite the robot rendering onto the completed image according
+to the transferred visibility labels, retaining the object in front of the occluded robot-hand regions. Action
+targets and affordances are computed from the original recording and paired with the rendered observations
+through their timestamps.
+B
+Affordance construction and policy training
+B.1
+Depth calibration
+We estimate a depth scale factor to align the monocular depth map Dt from Depth Anything V2 (Yang et al.,
+2024) with reconstructed hand geometry. Let Vh
+t contain reliable visible hand-surface vertices, excluding
+object-occluded regions. For a hand vertex v with camera-frame depth zv and image projection πKt(v), the
+per-hand scale factor is
+sh
+t = medianv∈Vh
+t
+zv
+Dt(πKt(v)).
+(S6)
+Valid scale factors from both hands are combined by their geometric mean and temporally smoothed in log
+space. We multiply the predicted depth map by the resulting scale factor before estimating object poses.
+F2G-Pose (Zhang et al., 2026a) estimates object poses from the aligned depth, original RGB, and object
+masks. Camera poses place these estimates in the same reference as the hands. Offline annotation may use
+neighboring frames for smoothing; at deployment, object poses are estimated from the robot’s current RGB-D
+observations.
+B.2
+Affordance representation
+For a current entity Ek, the affordance vector is
+zk =
+
+τk; ϕ(BoTEk); ϕ(EkTHL);
+ϕ(EkTHR); gk
+
+∈R29.
+(S7)
+Table S1 gives its components. Four slots represent the two hand TCPs and up to two objects, yielding a
+4 × 29 input at the current observation. Entity-local hand relations are invariant to a common rigid change
+of reference. Feature masks mark unavailable components, and entity masks exclude invalid entities from
+attention.
+Table S1 Affordance features per entity. The four entity slots share this representation.
+Feature
+Meaning
+Dim.
+Entity type
+Left/right hand, object 1 or 2
+1
+Entity pose
+Pose in the current torso
+frame
+9
+Left-hand relation
+Left TCP pose in entity frame
+9
+Right-hand relation Right TCP pose in entity
+frame
+9
+Opening indicator
+Hand opening; −1 for an
+object
+1
+B.3
+Affordance fusion and action objective
+The encoder separately projects each normalized entity vector and its feature-validity mask, sharing projection
+weights across slots. We sum these projections, add a learned slot embedding, and apply layer normalization
+16
+
+
+Table S2 Affordance encoder and fusion configuration.
+Component
+Configuration
+Entity-feature projection
+Linear, 29 →256
+Feature-mask projection
+Linear, 29 →256
+Slot embeddings
+Learned, 4 × 256
+Token normalization
+LayerNorm
+Cross-attention heads
+4
+Fusion
+Residual cross-attention
+Residual output projection
+Zero initialization
+to form the affordance token. Residual cross-attention follows Sec. 3.3 of the main paper and precedes every
+third action-expert block. Table S2 summarizes the configuration.
+Let A ∈R30×29 be an action chunk, MA its component-validity mask, ϵ Gaussian noise, and u ∈[0, 1] the
+sampled noise time. We use the action flow-matching objective
+Xu = (1 −u)A + uϵ,
+v⋆= ϵ −A,
+Laction =
+P MA ⊙
+ vθ(Xu, u | c) −v⋆2
+max(P MA, 1)
+.
+(S8)
+The conditioning c contains the current image, instruction, pose and opening states, and affordances when
+enabled. Only future actions are supervised, with the loss averaged over valid components of the normalized
+action representation.
+B.4
+Post-training
+Each task policy initializes from π0.5 (Physical Intelligence et al., 2025). We freeze the vision-language backbone
+and update the action expert, action input/output projections, and affordance-conditioning modules. Human-
+data policies use rendered observations, while robot-data policies use recorded head-camera observations. The
+affordance-free policy omits the adapter and is trained separately. Training-data controls are specified in
+Sec. D.
+C
+Real-robot deployment
+We deploy on a Unitree G1 with LinkerHand O6 hands and a head-mounted Intel RealSense D435 RGB-D
+camera. We use an NVIDIA GeForce RTX 5090 GPU for inference.
+C.1
+Online perception and affordance construction
+Grounding DINO (Liu et al., 2023) initializes task-object regions and reacquires lost targets. Optical-flow
+mask propagation and periodic SAM refinement (Kirillov et al., 2023) update these regions between detections.
+F2G-Pose (Zhang et al., 2026a) takes RGB, measured depth, object masks, and camera intrinsics to estimate
+camera-frame object poses. The calibrated camera-to-torso transform maps them into the observation-time
+torso frame Bo.
+Robot joint feedback and forward kinematics provide wrist poses, which the fixed tool transforms map to
+TCP poses; hand feedback provides opening states. We associate these measurements with RGB-D frames
+using nearby host receive timestamps. The resulting hand and object measurements populate the four-slot
+affordance representation in Sec. B.2, with masks for unavailable features. Policy inference consumes the RGB
+image, instruction, current state, and these affordances.
+C.2
+Asynchronous policy execution
+Each prediction uses 10 flow-matching integration steps to generate 30 future 29-dimensional actions. The
+executor interpolates the timestamped targets while the policy computes the next chunk asynchronously.
+17
+
+
+New plans are aligned in time with the ongoing trajectory and joined by segment blending. We use real-time
+chunking (RTC) (Black et al., 2025) to condition generation of the next chunk on the already committed
+action prefix.
+Let Gh be robot wrist frame h and Fh = GhTHopen
+h
+the fixed transform to its nominal open-hand TCP. A
+predicted TCP target becomes a wrist target through
+BoTG⋆
+h = BoTH⋆
+hF −1
+h .
+(S9)
+Predictions, feedback, and affordances share this tool convention. The frozen Torso-UMI-3 checkpoint of
+ScaleBFM (Zeng et al., 2026), fine-tuned by KODA (Zhou et al., 2026), tracks the torso and wrist targets at
+50 Hz. Hand opening is commanded separately, with hysteresis and temporal filtering. During policy inference,
+the controller continues tracking the current plan; if the plan is exhausted, the reference decelerates to a hold.
+C.3
+Spatial feedback
+Torso-tracking errors can displace the hands from their intended paths. Spatial feedback preserves each wrist
+target in the local odometry frame O and re-expresses it using the measured torso pose at execution time t:
+BtTG⋆
+h(t) = (OTBt)−1OTBo
+BoTG⋆
+h(t).
+(S10)
+This lets the arms compensate for body-tracking deviations while retaining the original spatial wrist targets.
+Forward kinematics gives the measured wrist poses. We compute position and rotation errors against the
+re-expressed targets, together with velocity errors that include measured body and joint motion. An arm-
+Jacobian least-squares solve, with damping, posture regularization, and bounded updates, produces corrections
+to the controller’s arm-joint targets. Only the 14 arm joints are corrected; the legs and waist retain the
+whole-body controller output. The policy remains fixed during this correction. Section D.3 evaluates its effect.
+C.4
+Inference latency
+Online object perception and policy inference take 75.0 ms and 251.8 ms per update on average, respectively,
+during steady-state deployment. Perception includes mask updates and object-pose estimation, while policy
+inference includes RTC. We schedule replanning requests at a nominal interval of 0.4 s.
+D
+Evaluation details and additional results
+D.1
+Training data and controlled comparisons
+Each task uses a separate policy post-trained on 150 human demonstrations. Robot training data match the
+number F of unique valid human observation frames under the common 30 Hz convention. Episode counts
+may differ between sources.
+All variants share the pretrained foundation, action interface, normalization, and optimization budget. Within
+each data source, policies with and without affordances are trained separately on identical frames, targets,
+and masks. They receive the same current pose and opening-state information. The controller and execution
+settings are shared, with spatial feedback enabled throughout the main-paper comparisons.
+The main
+comparison evaluates complete pipelines that differ in both data source and affordance input; within-source
+ablations isolate affordance conditioning.
+D.2
+Affordance conditioning across data sources
+Table S3 consolidates the main-paper TPS results under the shared execution setting. These scores also
+provide the feedback-on reference for the supplementary ablation below.
+18
+
+
+Table S3
+Main-paper TPS with spatial feedback enabled. +/−denote with/without affordances. Ego+ is EgoLoAF;
+Robot−is the teleoperation baseline.
+Task
+Ego−
+Ego+
+Robot−
+Robot+
+Tissue-to-Box
+64.2
+81.0
+81.4
+90.0
+Tissue-to-Bin
+55.8
+70.0
+75.2
+80.0
+Pick-Turn-Place
+50.2
+75.4
+74.8
+100.0
+Tissue-to-Cabinet
+42.5
+65.8
+66.0
+75.0
+Four-task mean
+53.2
+73.1
+74.4
+86.3
+Full configuration
+w/o affordances
+w/o SF
+w/o both
+Tissue-to-
+Box
+Tissue-to-
+Bin
+Pick-Turn-
+Place
+Tissue-to-
+Cabinet
+0
+20
+40
+60
+80
+100
+Mean TPS
+81.0
+70.0
+75.4
+65.8
+64.2
+55.8
+50.2
+42.5
+73.2
+65.0
+66.4
+58.6
+50.0
+48.6
+40.0
+35.0
+Figure S2 Human-data affordance/feedback ablation. Mean TPS (0–100, ↑) on all four tasks. SF denotes spatial feedback.
+Removing affordances uses a separately trained policy; toggling SF reuses its checkpoint.
+D.3
+Spatial-feedback ablation
+Figure S2 evaluates spatial feedback on all four tasks, following the TPS rubric and evaluation protocol in
+Sec. 5.1 of the main paper. For each affordance setting, feedback-on and feedback-off runs reuse the same
+checkpoint with all other execution settings fixed. Disabling spatial feedback removes only the additional
+correction in Sec. C.3; ordinary closed-loop control remains enabled.
+Spatial feedback improves TPS in both policy variants on all four tasks. Affordance conditioning remains
+beneficial when the additional correction is disabled, yielding gains of 23.2, 16.4, 26.4, and 23.6 points on
+Tissue-to-Box, Tissue-to-Bin, Pick-Turn-Place, and Tissue-to-Cabinet, respectively.
+D.4
+Data-collection efficiency
+We measure acquisition effort in person-hours (Chi et al., 2024), the working time summed across participants.
+This includes setup, demonstration collection, failed attempts, and resets, excluding unattended processing and
+post-collection annotation/review. Egocentric collection uses one person per task, while robot teleoperation
+uses two.
+19
+
+
+Table S4 Measured acquisition effort. Matched training-frame budgets. Gain is the teleoperation-to-ego person-hour
+ratio.
+Task
+Source
+People
+Minutes
+Person-h
+Gain
+Box
+Ego
+1
+30
+0.500
+2.33×
+Teleop.
+2
+35
+1.167
+Bin
+Ego
+1
+37.5
+0.625
+3.20×
+Teleop.
+2
+60
+2.000
+Plush
+Ego
+1
+42.5
+0.708
+2.59×
+Teleop.
+2
+55
+1.833
+Cabinet
+Ego
+1
+62.5
+1.042
+8.00×
+Teleop.
+2
+250
+8.333
+Table S4 reports collection duration, staffing, and person-hours for matched training-frame budgets. Person-
+hours equal duration in hours multiplied by staffing; the teleoperation-to-ego person-hour ratio gives each
+task’s efficiency gain. The equal-task mean of these ratios is 4.03×.
+Tissue-to-Cabinet has the largest gain (8.00×).
+Returning the humanoid to its starting position after
+long-distance movement is time-consuming, contributing to the larger collection-efficiency gap on this task.
+E
+Dataset coverage and organization
+The EgoLoAF dataset contains 128,400 independently recorded demonstrations across 1,284 tasks, with 100
+demonstrations per task and 1,000 hours of video after quality filtering. This section details the task taxonomy,
+representative task sequences, and the organization of observations and annotations.
+E.1
+Task taxonomy and coverage
+The task inventory organizes manipulation into six families and 30 finer-grained operation types. These
+cover object placement and organization, opening and closing, control actuation, alignment and insertion,
+material transfer, and tool use on surfaces. Table S5 lists the operation types and their coverage under
+three body-motion settings. The complete inventory of 1,284 tasks is provided in task_catalog.xlsx in the
+supplementary material, with task IDs linking the catalogue to the examples below.
+Each task specifies the objects, initial arrangement, action sequence, and completion criterion. The count of
+1,284 refers to these concrete task configurations, including configurations that combine a shared manipulation
+goal with different body-motion requirements. For example, placing a cup on a coaster appears as an in-place
+operation, an operation requiring a turn toward a side workspace, and an operation requiring the cup to be
+carried to another workspace. Each configuration has its own independent demonstrations.
+The three settings distinguish how the body participates in manipulation. In-place manipulation contains
+600 tasks performed within reach at one standing workspace. Posture-coordinated manipulation contains 400
+tasks requiring turning, bending, squatting, or combinations of these movements within the same work area.
+Loco-manipulation contains 284 tasks that connect spatially separated workspaces through walking, such as
+carrying an object to a destination or retrieving a tool before using it elsewhere. This organization covers
+both local hand–object interactions and their coordination with torso movement.
+E.2
+Representative task sequences
+Table S6 gives task sequences and observable completion criteria for pouring, object alignment, low-height
+operation, transport, and tool use. Each demonstration retains the transitions between grasping, changing
+body posture or location, interacting with the target, and releasing the object.
+Figure S3 follows two tasks through four stages, pairing the original egocentric view with the rendered robot
+view at each selected time. In A401, the demonstrator picks up a water jug, aligns it above an empty cup,
+pours water into the cup, and returns the jug to the table, all at one workspace. In C001, the demonstrator
+20
+
+
+Table S5 Task taxonomy and coverage. The inventory groups 1,284 task configurations into six manipulation families
+and 30 operation types. A: in-place manipulation; B: posture-coordinated manipulation; C: loco-manipulation. Counts
+denote task configurations.
+Manipulation family
+Operation types
+A
+B
+C
+Total
+Placement and
+organization
+Surface-to-surface transfer; loading/unloading open containers;
+sorting and arranging; stacking/nesting; tray loading and
+bimanual carrying
+100
+100
+100
+300
+Opening and closing
+Hinged doors; drawers; lids; latches and clips; combined opening,
+object transfer, and closing
+100
+100
+80
+280
+Control actuation
+Buttons; toggle/slide switches; levers; rotary controls; sequential
+control operation and state restoration
+100
+40
+0
+140
+Alignment and
+insertion
+Slot placement; peg/hole insertion and removal; connector
+mating; guided sliding, fitting, and hanging; structural
+assembly/disassembly
+100
+80
+22
+202
+Material transfer
+Liquid pouring; granular pouring and recovery; scooping;
+portioning; mixing followed by transfer
+100
+40
+41
+181
+Tool and surface
+operations
+Wiping; brushing; scraping/squeegeeing; sweeping and
+collection; pressing, rolling, and stamping
+100
+40
+41
+181
+Total
+600
+400
+284
+1,284
+Table S6 Representative task specifications. IDs match the complete task catalogue; A/B/C follow Table S5. A401 and
+C001 are illustrated in Fig. S3 and the accompanying videos.
+ID
+Task
+Action sequence
+Completion criterion
+A401
+Pour water into an
+empty cup
+Pick up the jug, align it above the cup, pour water into
+the cup, and return the jug to the table.
+Water is in the cup and the jug
+rests on the table.
+A321
+Insert a peg into a
+hole
+Pick up the peg, align it with the hole axis, and insert
+it to the stop.
+The peg reaches the stop and
+stands in the hole.
+B003
+Move a vase at low
+height
+Squat, support the vase at its body and base, transfer
+it to the mat, and stand up.
+The vase remains upright on
+the mat.
+B223
+Release a clamp at
+low height
+Squat, rotate the screw-clamp knob to loosen the
+clamp, and remove the two cardboard pieces.
+The clamp releases both pieces,
+which are removed intact.
+C001
+Carry a cup to a
+coaster
+Grasp the cup handle with one hand, walk to the
+destination, align the cup with the coaster, and place
+and release it.
+The cup is upright with its
+base within the coaster.
+C244
+Retrieve a cloth
+and wipe a tray
+Take the cloth from the tool area, walk to the tray, wipe
+up the water, and put the cloth in the collection basket.
+No visible pooled water
+remains; the cloth is in the
+basket.
+grasps a cup by its handle with one hand, carries it to another workspace, aligns it with a coaster, and places
+it down. The first example emphasizes local hand–object interaction, while the second connects grasping and
+placement through walking. Both use the same torso-and-hand annotation interface. Complete videos of A401
+and C001 accompany the supplementary material.
+E.3
+Episode contents and quality control
+Each episode pairs its task instruction with the original egocentric recording, rendered robot observations,
+and geometric annotations. Table S7 summarizes these fields and their learning roles. Language describes the
+complete demonstration; camera, torso, hand, and object annotations are aligned with individual observations.
+Original and rendered images share timestamps and geometric annotations, allowing the same action targets
+to be paired with either appearance.
+Torso and bilateral TCP trajectories provide current pose states and future action targets, while hand-opening
+21
+
+
+(a) A401: Pour water into an empty cup — in-place manipulation
+1. Pick up jug
+2. Align above cup
+3. Pour water
+4. Return jug
+Ego RGB
+Rendered
+(b) C001: Carry a cup to a coaster — loco-manipulation
+1. Grasp cup
+2. Walk with cup
+3. Align with coaster
+4. Place and release
+Ego RGB
+Rendered
+Figure S3 Temporal examples from the dataset. Four successive stages of A401 and C001, with paired original and
+rendered observations at each selected time. The full sequences are provided in the accompanying supplementary
+videos.
+Table S7 Dataset contents and learning roles. Per-frame validity masks identify unavailable or unreliable annotation
+components.
+Field
+Contents
+Role in learning
+Source recording
+RGB, timestamps, intrinsics, camera trajectory
+Source observations and reconstruction
+Task instruction
+Language description of the complete
+demonstration
+Task conditioning
+Torso and hand
+motion
+Virtual-torso and bilateral TCP trajectories
+Current pose state and future action
+targets
+Hand opening
+Binary left/right opening states and validity
+Current state and future opening targets
+Object geometry
+Object poses, hand–object affordances, validity
+Current geometric conditioning
+Rendered
+observations
+G1/O6 appearance composited into source
+frames
+Policy observations with robot appearance
+labels specify the corresponding opening states. Object poses and hand–object affordances provide geometric
+conditioning at the current observation. The continuous trajectories support different target horizons and
+temporal sampling without repeating reconstruction. Sections A and B describe the conversion and training
+procedures.
+We check demonstrations for recording completeness, camera-trajectory quality, arm and hand rendering
+quality, and task completion, discarding demonstrations that fail these checks. Per-frame masks preserve the
+validity of individual annotation components so that training can use the available supervision. Task-specific
+training and evaluation settings are given in Sec. D.
+22

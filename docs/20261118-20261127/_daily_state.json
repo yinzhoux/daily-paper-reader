@@ -1,0 +1,297 @@
+{
+  "date": "20261118-20261127",
+  "date_label": "2026-11-18 ~ 2026-11-27",
+  "generated_at": "2026-11-27 09:03:28 UTC",
+  "recommend_exists": true,
+  "run_count": 1,
+  "papers": [
+    {
+      "paper_id": "2611.29771v1",
+      "route": "20261118-20261127/2611.29771v1-into-my-arms-structured-reinforcement-learning-for-autonomous-transport-of-objects-and-humans",
+      "title": "Into My Arms: Structured reinforcement learning for autonomous transport of objects and humans",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 10.0,
+      "evidence": "面向人形全身物体与人搬运的结构化强化学习",
+      "first_seen_at": "2026-11-27 09:03:28 UTC",
+      "updated_at": "2026-11-27 09:03:28 UTC"
+    },
+    {
+      "paper_id": "2611.25251v1",
+      "route": "20261118-20261127/2611.25251v1-wevo-world-model-enabled-vla-optimization-for-whole-body-loco-manipulation",
+      "title": "WEVO: World Model-Enabled VLA Optimization for Whole-Body Loco-Manipulation",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "在视频世界模型中闭环强化学习优化人形全身移动操作",
+      "first_seen_at": "2026-11-27 09:03:28 UTC",
+      "updated_at": "2026-11-27 09:03:28 UTC"
+    },
+    {
+      "paper_id": "2611.26420v1",
+      "route": "20261118-20261127/2611.26420v1-awaken-hi-scaling-humanoid-intelligence-with-whole-body-human-experience",
+      "title": "Awaken-HI: Scaling Humanoid Intelligence with Whole-Body Human Experience",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "基于同步全身人体运动训练的人形移动操作VLA模型",
+      "first_seen_at": "2026-11-27 09:03:28 UTC",
+      "updated_at": "2026-11-27 09:03:28 UTC"
+    },
+    {
+      "paper_id": "2611.29749v1",
+      "route": "20261118-20261127/2611.29749v1-carlhoi-counterfactual-predictive-imagination-for-generalizable-multi-humanoid-object-interaction-under-constrained-environments",
+      "title": "CarlHOI: Counterfactual Predictive Imagination for Generalizable Multi-Humanoid Object Interaction under Constrained Environments",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "面向多人形物体交互的反事实关系潜世界模型",
+      "first_seen_at": "2026-11-27 09:03:28 UTC",
+      "updated_at": "2026-11-27 09:03:28 UTC"
+    },
+    {
+      "paper_id": "2611.31863v1",
+      "route": "20261118-20261127/2611.31863v1-ada-bfm-adapting-behavior-foundation-models-for-humanoid-scene-interaction",
+      "title": "Ada-BFM: Adapting Behavior Foundation Models for Humanoid Scene Interaction",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "适配行为基础模型实现人形机器人全身场景交互",
+      "first_seen_at": "2026-11-27 09:03:28 UTC",
+      "updated_at": "2026-11-27 09:03:28 UTC"
+    },
+    {
+      "paper_id": "2611.32260v1",
+      "route": "20261118-20261127/2611.32260v1-egoloaf-learning-humanoid-loco-manipulation-from-egocentric-demonstrations-with-hand-object-affordances",
+      "title": "EgoLoAF: Learning Humanoid Loco-Manipulation from Egocentric Demonstrations with Hand-Object Affordances",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "结合手物可供性的人形全身移动操作学习",
+      "first_seen_at": "2026-11-27 09:03:28 UTC",
+      "updated_at": "2026-11-27 09:03:28 UTC"
+    },
+    {
+      "paper_id": "2611.32665v2",
+      "route": "20261118-20261127/2611.32665v2-diffgr00t-execution-aware-differentiable-training-for-humanoid-whole-body-vision-language-action-models",
+      "title": "DiffGR00T: Execution-Aware Differentiable Training for Humanoid Whole-Body Vision-Language-Action Models",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "结合学习世界模型的人形全身控制与操作",
+      "first_seen_at": "2026-11-27 09:03:28 UTC",
+      "updated_at": "2026-11-27 09:03:28 UTC"
+    },
+    {
+      "paper_id": "2611.24062v1",
+      "route": "20261118-20261127/2611.24062v1-jepa-dots-dual-latent-world-model-for-language-guided-robot-control",
+      "title": "JEPA Dots: Dual-Latent World Model for Language-Guided Robot Control",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "分离动力学与任务表示的双潜空间世界模型，用于语言引导机器人控制",
+      "first_seen_at": "2026-11-27 09:03:28 UTC",
+      "updated_at": "2026-11-27 09:03:28 UTC"
+    },
+    {
+      "paper_id": "2611.24074v1",
+      "route": "20261118-20261127/2611.24074v1-semphys-semantic-physical-co-learning-for-humanoid-motion-generation-via-differentiable-world-models",
+      "title": "SemPhys: Semantic-Physical Co-Learning for Humanoid Motion Generation via Differentiable World Models",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "利用可微世界模型训练人形机器人全身运动生成",
+      "first_seen_at": "2026-11-27 09:03:28 UTC",
+      "updated_at": "2026-11-27 09:03:28 UTC"
+    },
+    {
+      "paper_id": "2611.24115v1",
+      "route": "20261118-20261127/2611.24115v1-embodied-graph-a-relational-world-model-for-long-horizon-tasks",
+      "title": "Embodied Graph: A Relational World Model for Long-Horizon Tasks",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "基于稀疏结构化状态抽象的关系世界模型用于规划",
+      "first_seen_at": "2026-11-27 09:03:28 UTC",
+      "updated_at": "2026-11-27 09:03:28 UTC"
+    },
+    {
+      "paper_id": "2611.24938v2",
+      "route": "20261118-20261127/2611.24938v2-phoenix-learning-scene-structure-representations-for-generalizable-world-action-models",
+      "title": "Phoenix: Learning Scene Structure Representations for Generalizable World-Action Models",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "为世界-动作建模与操作学习场景结构表示",
+      "first_seen_at": "2026-11-27 09:03:28 UTC",
+      "updated_at": "2026-11-27 09:03:28 UTC"
+    },
+    {
+      "paper_id": "2611.24138v2",
+      "route": "20261118-20261127/2611.24138v2-ego2x-contact-aware-transfer-from-egocentric-human-data-to-any-robot",
+      "title": "Ego2X: Contact-aware Transfer from Egocentric Human Data to Any Robot",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 7.0,
+      "evidence": "以物体为中心接触表征将人类视频迁移为机器人操作数据",
+      "first_seen_at": "2026-11-27 09:03:28 UTC",
+      "updated_at": "2026-11-27 09:03:28 UTC"
+    },
+    {
+      "paper_id": "2611.24585v1",
+      "route": "20261118-20261127/2611.24585v1-shape-discrete-supervision-and-parallel-continuous-streams-for-learning-dexterous-manipulation-from-egocentric-human-data",
+      "title": "SHAPE: Discrete Supervision and Parallel Continuous Streams for Learning Dexterous Manipulation from Egocentric Human Data",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 7.0,
+      "evidence": "利用第一视角人类演示与离散动作词元学习灵巧操作策略",
+      "first_seen_at": "2026-11-27 09:03:28 UTC",
+      "updated_at": "2026-11-27 09:03:28 UTC"
+    },
+    {
+      "paper_id": "2611.24816v1",
+      "route": "20261118-20261127/2611.24816v1-robomorpher-scaling-robot-morphology-representations-for-cross-embodiment-action-prediction",
+      "title": "RoboMorpher: Scaling Robot Morphology Representations for Cross-Embodiment Action Prediction",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 7.0,
+      "evidence": "学习将关节值与运动学效应关联的形态条件动作表示",
+      "first_seen_at": "2026-11-27 09:03:28 UTC",
+      "updated_at": "2026-11-27 09:03:28 UTC"
+    },
+    {
+      "paper_id": "2611.26376v1",
+      "route": "20261118-20261127/2611.26376v1-alignment-drives-reuse-learning-generalizable-robot-use-agents-from-heterogeneous-experience",
+      "title": "Alignment Drives Reuse: Learning Generalizable Robot-Use Agents from Heterogeneous Experience",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 7.0,
+      "evidence": "对齐异构本体与场景几何以学习共享操作技能表示",
+      "first_seen_at": "2026-11-27 09:03:28 UTC",
+      "updated_at": "2026-11-27 09:03:28 UTC"
+    },
+    {
+      "paper_id": "2611.23974v1",
+      "route": "20261118-20261127/2611.23974v1-last10-a-unified-latent-world-action-model-with-control-centric-spatiotemporal-reasoning",
+      "title": "LaST1.0: A Unified Latent World-Action Model with Control-Centric SpatioTemporal Reasoning",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 6.0,
+      "evidence": "面向操作策略的控制中心潜空间世界模型表征",
+      "first_seen_at": "2026-11-27 09:03:28 UTC",
+      "updated_at": "2026-11-27 09:03:28 UTC"
+    },
+    {
+      "paper_id": "2611.24926v2",
+      "route": "20261118-20261127/2611.24926v2-grana-compositional-reward-modeling-for-long-horizon-robot-manipulation",
+      "title": "Grana: Compositional Reward Modeling for Long-Horizon Robot Manipulation",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 6.0,
+      "evidence": "面向长程机器人操作的组合式奖励建模与进度跟踪",
+      "first_seen_at": "2026-11-27 09:03:28 UTC",
+      "updated_at": "2026-11-27 09:03:28 UTC"
+    },
+    {
+      "paper_id": "2611.25366v1",
+      "route": "20261118-20261127/2611.25366v1-learning-to-move-from-and-for-manipulation-policies-spatializing-latent-action-representations-for-goal-pose-free-mobile-manipulation",
+      "title": "Learning to Move from and for Manipulation Policies: Spatializing Latent Action Representations for Goal-Pose-Free Mobile Manipulation",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 6.0,
+      "evidence": "为移动操作策略学习空间化潜动作表示",
+      "first_seen_at": "2026-11-27 09:03:28 UTC",
+      "updated_at": "2026-11-27 09:03:28 UTC"
+    }
+  ]
+}

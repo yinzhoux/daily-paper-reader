@@ -1,0 +1,1543 @@
+Into My Arms:
+Structured reinforcement learning for au-
+tonomous transport of objects and humans
+Elle Miller1∗, Reem Almheiri2,3, Takuma Tsukakoshi2, Ben Sanati1, Tamon Miyake2, Yushi Wang2, Namiko Saito2,4,
+Shigeki Sugano2, Tetsuya Ogata2, Rika Antonova5, Oisin Mac Aodha1, & Sethu Vijayakumar1
+1University of Edinburgh, UK.
+2Waseda University, Tokyo, Japan.
+3Technology Innovation Institute, Abu Dhabi.
+4Microsoft Research Asia, Tokyo, Japan.
+5University of Cambridge, UK.
+∗e-mail: elle.miller@ed.ac.uk
+Abstract. Whole-body humanoid manipulation remains bottlenecked by high-dimensional state-action spaces, contact-
+rich environments, and long task horizons. This trilemma is a challenge that state-of-the-art reinforcement learning
+(RL) methods are yet to resolve reliably. We address it with three contributions that add just enough structure to
+guide exploration: Sparse Interaction Edges (SIE) for whole-body manipulation, Interaction Gated Transport (IGT) for
+sustained transport over long horizons, and a Hinted Object Path (HOP) that resolves collision and search complexity
+bottlenecks. Across all three, the policy remains free to discover its own manipulation strategy. The method generalises
+from rigid object to human transport. As a flagship demonstration, we show, to our knowledge, the first bed-to-wheelchair
+transfer of a medical mannequin by a humanoid robot completed with no human intervention during execution. In
+the domain of human transfer, we show that a single policy can adapt across substantial variations in body mass,
+size, and random force perturbations, all while training on a single GPU in under an hour. Our approach offers a
+pathway to fully RL-driven humanoid manipulation, enabling assistive robots that can help humans. Website: https:
+//elle-miller.github.io/into_my_arms/
+Introduction
+A robotic agent trained via reinforcement learning (RL) in sim-
+ulation is free to exploit an embodiment that differs markedly
+from our own, discover non-obvious strategies, and acquire
+closed-loop policies that remain robust under substantial scene
+variation and perturbation. Within this paradigm, RL agents
+have achieved superhuman feats in high-speed drone racing [2],
+quadrupedal parkour [3], and blind in-hand manipulation [4].
+Yet, fully RL-driven humanoid manipulation has not seen the
+same gains. Most humanoid manipulation work instead inte-
+grates RL with motion priors or imitation learning, enabling
+humanoids to lift medium-sized rigid objects [5–8]. Under
+pure RL, results remain restricted to bi-manual handovers of
+small rigid objects [9] or end-effector-driven box-transfer [10].
+We attribute this gap to three intersecting bottlenecks. (1)
+High state-action dimensionality from coupled robot-object
+dynamics: While locomotive agents (drones, quadrupeds) oper-
+ate with 6–12 degrees of freedom (DoFs) to move themselves,
+humanoids designed for manipulation often possess 30 or more
+DoFs and must additionally control the DoFs of an external
+object. Each DoF exponentially expands the search space and
+the exploration burden. (2) Discontinuous optimisation land-
+scapes from contact-rich interaction: Standard entropy-based
+exploration relies on isotropic Gaussian sampling in joint space.
+In free space, this yields continuous feedback; under tight inter-
+action bounds, the same perturbations instead cause collisions
+or invalid configurations, making the reward landscape difficult
+to optimise. (3) Long, acyclic task horizons: Cyclic tasks (e.g.,
+locomotion or in-hand rotation) permit rapid credit assignment
+over repeated motion primitives. Longer-horizon tasks can
+instead require non-repetitive sequences of distinct phases (e.g.,
+lifting, transporting, placing), each demanding different skills.
+State-of-the-art RL approaches can sometimes address one
+or two of these challenges in isolation, but can fail when con-
+fronted with this trilemma simultaneously. Closing the gap
+requires methods that remain general-purpose, rather than be-
+ing engineered for a single task. We ground our contribution
+in a task that embodies all three bottlenecks at once and which
+carries substantial real-world value: autonomous human bed-
+to-wheelchair transfer (Figure 1). Physical caregiving is an
+increasingly urgent application for robotics. More urgent, we
+argue, than the household automation that dominates the field’s
+current attention [11]. Human mobility is inherently fragile,
+and demand for care is accelerating. By 2100, nearly a quarter
+of the global population is projected to be aged 65 or older,
+exceeding 35% in nations like Japan [12]. Relying solely on
+human caregivers to absorb this demand compromises recip-
+ient autonomy because independence in daily mobility then
+depends on another person’s availability, while further strain-
+ing an overwhelmed workforce [13]. Bed-to-chair transfers are
+essential for well-being and preventing complications such as
+pressure injuries [14], yet remain among the most physically
+hazardous tasks for care staff, persisting despite known risks
+due to staffing shortages and time pressure [15]. Automating
+this burden does not dehumanise care: it frees caregivers to
+focus on social and emotional connection, and restores au-
+tonomy to recipients [16]. That hope is voiced clearly by
+Henry Evans, left mute and quadriplegic by a 2002 stroke,
+who, with Jane Evans, pioneered assistive robotics for disabil-
+ity through Robots for Humanity: “for the severely disabled,
+for whom miraculous medical breakthroughs don’t seem fea-
+sible in our lifetimes, robots are the best hope for significant
+independence” [17].
+In the assistive domain, RL has so far been limited to single-
+1
+arXiv:2611.29771v1  [cs.RO]  22 Nov 2026
+
+
+Above: AIREC autonomously lifts a medical mannequin into a wheelchair facing away from bed.  Below: AIREC learns a different lifting strategy for a wheelchair facing the bed. 
+Fig. 1
+Autonomous human bed-to-wheelchair transfer on AIREC. Trajectories from a policy trained entirely in simulation are deployed
+zero-shot on the physical robot, lifting a medical mannequin (155 cm, 15 kg) from a bed to a wheelchair with no human intervention during
+execution. Unlike prior humanoid bed-to-chair systems that required a caregiver for key sub-actions [1], our full transfer process runs unattended.
+Two wheelchair placements are shown, with the corresponding simulated rollout inset.
+limb manipulation tasks in simulation, such as lifting an arm
+or leg [18–20], falling short of the whole-body, contact-rich,
+long-horizon transfer we address here. Beyond its real-world
+significance, bed-to-chair transfer is a demanding technical
+testbed. Our humanoid platform AIREC (AI-driven Robot for
+Embrace and Care) [21] has an action space of 35 DoFs and
+must manipulate an articulated human model with 15 DoFs of
+its own, squeezing between the human and the bed, lifting and
+carrying them to the wheelchair, and precisely placing them
+down within tight insertion tolerances, all without tipping over.
+With a combined positional state dimension of 50 and control at
+30 Hz, the search space spans tens of thousands of dimensions.
+Robot-human, robot-environment, and human-environment
+contact discontinuities further complicate the search space.
+We address these bottlenecks through three generalisable
+ideas to guide exploration (Figure 3). First, standard RL formu-
+lations feed raw joint configurations [5], and sometimes end-
+effector poses [9,22], into the MDP, creating a mismatch with
+task-space rewards that we hypothesise contributes to poor ex-
+ploration. We resolve this with Sparse Interaction Edges (SIE),
+unifying state and reward through keypoints connected across
+the robot and object, aligning the optimisation gradient with the
+policy’s own observations. Second, standard transport rewards
+measure only object-to-goal displacement, permitting uncon-
+strained solutions such as throwing an object when sustained
+proximity is what is actually desired; our Interaction Gated
+Transport (IGT) softly gates the transport reward on this same
+SIE structure. Third, jointly discovering robot and object tra-
+jectories from scratch creates a prohibitively high-dimensional
+search, and standard exploration fails wherever agents must
+manoeuvre around obstacles; our Hinted Object Path (HOP) in-
+stead guides exploration with an explicit object path. Across all
+three, we give RL just enough task structure to guide learning
+(which spatial relationships matter, how closely the robot must
+stay engaged, and where the object should travel), while leav-
+ing the precise manipulation strategy for the policy to discover,
+refine, or abandon on its own.
+Together, these contributions solve three whole-body,
+contact-rich, long-horizon tasks where an ablated RL baseline
+fails, from transporting a ball into a box to transferring humans.
+As a flagship demonstration, we show, to our knowledge, the
+first bed-to-wheelchair transfer of a medical mannequin by a
+humanoid robot completed with no human intervention (Fig-
+ure 1). Within the human transfer task, we show that a single
+policy can adapt across substantial variation in human body
+mass and size. (115–180 cm, 11–33 kg). Training is highly ef-
+ficient, reaching competitive performance in under an hour on
+a single consumer GPU across 2048 parallel environments. By
+addressing core bottlenecks in high-dimensional robot learn-
+ing, this work offers a pathway to fully RL-driven humanoid
+manipulation, enabling assistive robots that can help humans.
+2
+
+
+AIREC always hits the ball in the direction of 
+the box using one hand
+AIREC always uses both arms to transport 
+and place the ball in the box
+AIREC can mostly place the human in the chair, but with 
+vastly different strategies including throwing, lifting by the 
+head or a single leg...
+AIREC always lifts the human into the chair 
+with its arms supporting their back and thighs
+Our method
+AIREC always carries the human around the 
+obstacle 
+The obstacle leads AIREC to always 
+throw the human in a variety of ways
+RL baseline
+1.0 
+0.8 
+0.6
+0.4 
+0.2 
+0.0
+0
+5
+10
+15
+timesteps (M)
+20
+25
+1.0 
+0.8 
+0.6 
+0.4 
+0.2 
+0.0
+30
+5
+10
+15
+timesteps (M)
+20
+25
+0.4 
+0.3 
+0.2 
+0.1 
+0.0
+30
+5
+10
+15
+20
+25
+30
+Ball
+Human (near)
+Human (far)
+timesteps (M)
+Normalised mean evaluation return
+RL baseline
+Our method
+Guidance (of total)
+0
+0
+Fig. 2
+Mean evaluation returns and characteristic strategies across 5 seeds. Top: normalised mean evaluation return with the guidance
+reward component shaded during training for Ball, Human (near) and Human (far). Bottom: qualitative strategies of the ablated RL baseline
+versus our method in each environment.
+Results
+Here we describe our key findings. As is common in RL,
+we report the mean and variance of evaluation returns across
+different seeds (Figure 2). However, to fully illustrate the effec-
+tiveness of our learned policies, we provide per-seed videos on
+our project website (https://elle-miller.github.io/
+into_my_arms/).
+Setup.
+We train our agent using clipped PPO [23] to control
+AIREC, a 35-DoF mobile humanoid (see Methods). We evalu-
+ate three novel environments: Ball, a rigid sphere transported
+from a table into a raised box 2.5 m away; Human (near), trans-
+ferring an articulated human model from a bed into a nearby
+wheelchair; and Human (far), the same transfer task but over
+a longer distance with an obstacle in the way. Full agent, en-
+vironment, and training details are provided in Methods and
+Appendix.
+Ablated RL Baseline.
+To our knowledge, no published pure-
+RL method targets this combination of whole-body control,
+complex object contact, and long-horizon transport, and prior
+whole-body approaches typically rely on motion priors or im-
+itation [5–8]. We therefore compare against an ablated RL
+baseline that mirrors common design choices from that liter-
+ature while removing our contributions: the agent observes
+joint configurations [5] and end-effector relations [9,22], SIE
+is restricted to the two end-effectors, giving two robot-object
+edges for the observation and reward, and HOP gated by IGT
+is replaced with a standard object-to-goal distance reward. Se-
+quential ablations in Figure 6 isolate each component’s contri-
+bution.
+Compute.
+On a single NVIDIA GeForce RTX 5090, Ball
+trains in about 30 minutes, while competitive Human perfor-
+mance appears within about 60 minutes. The longer Human
+wall-clock is dominated by articulated-body, contact-rich simu-
+lation. Throughput is essentially identical for our method and
+the RL baseline in each environment, so the extra guidance
+structure does not measurably increase training cost.
+Sparse Interaction Edges enable and guide whole-
+body manipulation
+Sparse Interaction Edges (SIE) establish spatial correspondence
+between robot and object keypoints, aiding initial grasping and
+later guiding transport via the interaction gate. In Ball, the
+single object keypoint sits at the centre, so our SIE formulation
+leaves the grasp location unguided, giving the policy flexi-
+bility in its manipulation strategy. The Human environments
+are designed differently: we deliberately choose object-robot
+keypoint pairs that result in a more comfortable transfer.
+3
+
+
+Each object node has a suggested reference path, redirecting 
+reward gradients around collision boundaries and collapsing 
+the object's search space.
+We place keypoints on the robot and object, connect relevant 
+pairs to form interaction edges, and reward a proximity 
+setpoint.
+A subset of edges are chosen as "transport" edges. For our tasks, we 
+desire sustained proximity and softly gate the transport reward on the 
+longest transport edge at the timestep.
+1. Sparse Interaction Edges (SIE)
+2. Interaction Gated Transport (IGT)
+3. Hinted Object Path (HOP)
+Ball pose is defined via a center 
+keypoint 
+Human pose is defined 
+via 5 keypoints: 
+shoulders, waist, thighs 
+Sigmoid 
+gate
+“Good” proximity 
+for transport
+“Bad” proximity 
+for transport
+Fig. 3
+Structured reinforcement learning for object transport. We propose three generalisable methods to guide learning in whole-body,
+contact-rich, and long-horizon manipulation: Sparse Interaction Edges, Interaction Gated Transport, and Hinted Object Path. These ideas can be
+integrated into the MDP’s observation and reward function without changes to the RL algorithm or training process.
+Figure 2Figure 6 shows the effect of enabling whole-body
+SIE in Ball, comparing the first and second panels. The RL
+baseline agent (first panel) uses its right hand to push the ball
+behind itself toward the goal, lifting its left arm out of the way;
+it fails to lift or carry the ball across all five seeds (Figure 2).
+We attribute this directly to the MDP formulation: the agent can
+only “see” the end-effector-to-object distance vectors, and is
+rewarded only for closing those distances, so the optimisation
+aligns with end-effector motion alone, leaving the rest of the
+robot’s embodiment unused. When we instead let the agent
+observe additional robot-object keypoint pairs, and reward
+minimising these edges, it learns to encircle the object with
+both arms and lift it off the table (second panel). The agent still
+fails the task, but the shift in strategy is the important result:
+rather than exploiting a single end-effector, it now manipulates
+the object using its whole body.
+We observe a similar phenomenon in the human environ-
+ments, with wider variation across seeds: the baseline agent
+typically throws the human, drops it into its other hand, or
+lifts by a single thigh or the head, rather than supporting it
+appropriately (Human (near) in Figure 2; further variation in
+Human (far) is discussed below). These results suggest two
+primary benefits of SIE. First, it facilitates whole-body manip-
+ulation via observation-reward alignment. By perceiving and
+directly acting on robot-object spatial relationships, the agent
+no longer has to discover these relationships implicitly in the
+joint space. Second, it biases the solution toward desirable
+behaviour through robot-object keypoint design alone, without
+additional reward engineering.
+Interaction Gated Transport enables consistent, but
+not constraining, long-horizon strategies
+Standard transportation rewards typically measure only object-
+to-goal displacement, permitting unconstrained solutions such
+as throwing or pushing. For long-horizon transport tasks, how-
+ever, sustained proximity to the object is usually what is ac-
+tually desired. After learning to grasp and lift an object via
+SIE, we apply Interaction Gated Transport, which acts like
+an activation function on the transport reward, based on the
+lengths of a chosen subset of SIE edges.
+We see the direct effect of IGT in Ball by comparing the
+second and third panels of Figure 6. The initial grasp and lift
+are nearly identical, but instead of throwing the ball, the IGT-
+enabled agent maintains its grasp and carries the ball to the
+box. The same pattern appears, with greater variation, in the
+human environments. For the RL baseline in Human (near), the
+transport strategy differs in every seed, since the unconstrained
+reward permits any path to the goal. This variation is magnified
+under the longer horizon of Human (far): seed 1 transports
+the human upside-down by the ankles; seeds 2 and 4 launch
+the human into the air, overhead and behind; seed 3 comes
+closer, but ends up flipping the human 360◦; and only seed
+5 succeeds. In contrast, our method transports the human in
+the same style across every seed in both human environments,
+with only minor variation, e.g., in Human (near) seed 2, the
+agent’s right hand wraps around the left thigh. In contrast, for
+other seeds it wraps around the upper left calf. By zeroing
+the transport reward whenever robot-object keypoint distances
+exceed a set threshold, IGT prevents early convergence to these
+degenerate strategies and enables stable, repeatable behaviour
+over long horizons.
+Hinted Object Path resolves collision and search-
+complexity bottlenecks
+Standard object-to-goal displacement rewards do not scale to
+contact-rich, high-dimensional transport problems. The gradi-
+ent of fastest reward accumulation points directly at the goal,
+which in the presence of obstacles points into a collision bound-
+ary rather than around it, trapping exploration. The Hinted
+Object Path instead defines a reward over a full path to the
+goal, redirecting this gradient around such boundaries. We see
+this directly in Ball, comparing the third and fourth panels of
+Figure 6: SIE and IGT alone already enable the agent to lift
+and carry the ball with its whole body, but with an object-to-
+goal reward the gradient of fastest accumulation points into the
+box itself, and the agent cannot explore around this collision
+boundary. With HOP, the object path and thus reward gradient
+is instead directed up and over the box, leading to task success.
+HOP’s second benefit, reducing search complexity, grows
+with object complexity and is clearest in the human environ-
+ments, where jointly discovering a robot and object trajec-
+tory across many object keypoints is itself a high-dimensional
+search problem, independent of any obstacle. Without HOP, the
+RL baseline’s human keypoints follow wildly different paths
+4
+
+
+HOP 
+Rollout
+1.0
+0.8
+0.6
+0.4
+0.2
+0
+5
+10
+20
+ 
+25
+30
+15
+timesteps (M)
+HOP completion fraction during training
+Our method
+Reaches 100% by 5M, 
+then learns a refined 
+path
+Learned vs Hinted Object Path
+Ball
+Human (near)
+Human (far)
+Hinted Object Paths across environments
+Human (near) metrics
+Fig. 4
+Hinted Object Paths (HOP) across environments. Top:
+HOP waypoints in Ball, Human (near), and Human (far). Bottom
+left: an example learned rollout (black) versus hints (pink) in Human
+(near). Bottom right: HOP completion rises early in training, then
+falls as the policy refines a path that still succeeds.
+across seeds (inserted feet-first, dropped through the upper
+body, carried upside-down, or spun mid-transport) and in Hu-
+man (far), the agent resorts to throwing the human in a variety
+of ways (Figure 2). With HOP, the agent clears the obstacle.
+Importantly, the hint is not a rule: keypoints track the reference
+early, completing the entire path around 5M timesteps in Hu-
+man (near) before gradually departing from it (Figure 4). These
+results show that HOP does not need to be precise to be use-
+ful: a coarse object path is enough both to redirect exploration
+around contact-rich obstacles and to collapse an otherwise vast
+object search space down to a single reference, after which
+the agent is free to refine or abandon it. While IGT shapes
+how the robot engages with the object, HOP guides where the
+object travels; the two act on different parts of the problem and
+compose naturally, together turning an otherwise intractable
+joint search into one the agent can solve reliably.
+Immediate generalisation across diverse human
+masses and sizes
+An implicit benefit of using RL for object transport, rather than
+task-specific engineered control, is generalisability: a closed-
+loop policy should adapt to variation in the object itself, not
+just the robot’s own state. Here, we test whether our proposed
+method retains this benefit after being trained with our addi-
+tional task structure. We study this using the human transfer
+task, both because articulated bodies present a harder gener-
+alisation challenge than a rigid object, and because human
+bodies vary substantially in practice: a real-world necessity
+for any caregiving system. We train different policies under
+independent variations in human mass (11–33 kg) and height
+(115–180 cm) (joint torque limits constrain our physical plat-
+form to a maximum payload of ∼35 kg).
+In Figure 5(a), across 1,000 rollouts spanning this mass
+range, we can see that the policy largely guides the human
+along a common path regardless of mass, with some variation:
+lighter bodies follow a slightly elevated trajectory and corre-
+spondingly sharper robot joint inflexions, indicating tighter
+trajectory tracking. A trained policy is also able to adapt across
+human height, since representing the body and task goals via
+five keypoints endows the observation space with structural
+geometric invariance. The main challenges instead came from
+physical scene alignment: the workspace and initial robot con-
+figuration were tailored to the 155 cm mannequin, leaving sub-
+optimal starting placements at extreme heights (e.g., the 115 cm
+mannequin’s feet resting on the robot’s hand), and the compact
+Japanese wheelchair frame struggled to accommodate indi-
+viduals near 180 cm. Despite these alignment and workspace
+constraints, the agent recovers and completes the transfer task
+in most cases, demonstrating generalisation across substantial
+variation in human morphology without any additional training.
+Robust closed-loop behaviour to unpredictable ob-
+ject motion
+Real-world transport rarely goes exactly to plan: objects can
+shift, slip, or be jostled mid-transport, and a robust policy must
+react rather than blindly follow a fixed trajectory. This is espe-
+cially true for human transfer, where care-recipients with motor
+impairments may experience involuntary spasms or tremors.
+To evaluate the agent’s capacity to react to such disturbances,
+we apply random external forces to the target object in both the
+Ball and Human environments: at each timestep, a force sam-
+pled uniformly from [300,500] N is applied with probability
+p = 0.1 to the centre of the ball or the chest of the human.
+Introducing these perturbations prompted the agent to dis-
+cover a distinct, more robust manipulation strategy while pre-
+serving task success. In Ball (final panel, Figure 6), the unper-
+turbed agent executes a symmetrical “hug” grasp, placing both
+hands together and supporting the ball atop its forearms; under
+perturbation, it instead learns an asymmetrical grasp (right hand
+underneath for primary support, left hand around the centre for
+stabilisation) maintained throughout transport. We observe an
+analogous adaptation in Human. Whereas unperturbed rollouts
+rest the left hand at the centre of the back with the right arm
+at a right angle (Figure 1), the perturbed policy wraps the left
+hand over the human’s left shoulder, drawing the right hand
+much closer to the chest and securing the human closer to its
+torso (Figure 5(b)).
+Across both domains, random object perturbations during
+training prompt the emergent discovery of tighter, more secure
+grasps without any explicit reward, demonstrating RL’s capac-
+5
+
+
+Built-in 
+compliance
+Random force perturbations naturally induces more secure carrying:
+3.8 ft / 115 cm 
+action
+Tactile 
+sensing
+observation
+RL policy
+(c) Could this be safe for real-world deployment with humans? 
+(a) Can this approach generalise across diverse human morphologies?
+(b) What if a person moves unexpectedly? 
+Our RL policies easily adapt across simulated variations in mass & size: 
+5.8 ft / 177 cm 
+5x human keypoint positions during transport
+ non-moving mannequin
+unpredictable mannequin
+Certified 
+controller
+Several existing integrations could bring this system close to real trials:
+More realistic 
+human models
+& contact-rich 
+simulation
+Fig. 5
+Generalisation, robustness, and a path toward safer deployment. (a) A single policy adapts across diverse human morphologies
+in simulation, including mass variation (colour scale) and body size (115–180 cm). (b) Random force perturbations that emulate unexpected
+recipient motion induce a tighter, more secure carry compared with an unperturbed mannequin. (c) Several existing ingredients could help bring
+such a systems closer to real human trials.
+ity for robust, closed-loop manipulation under unpredictable
+object dynamics.
+First bed-to-chair transfer of a medical mannequin
+without intervention
+As a flagship demonstration, we replayed trajectories from our
+trained policy, open-loop, on the physical AIREC robot in a
+replica bedroom with an adjustable-height hospital bed and
+standard wheelchair (Figure 1), using a medical training man-
+nequin (155 cm, 15 kg) with realistic joint motion. Despite sev-
+eral sim-to-real challenges (Appendix A), AIREC successfully
+lifts the mannequin from the bed, carries it to the wheelchair,
+places it down, and disengages. We test two wheelchair place-
+ments, facing the head of the bed and facing away at the foot,
+both requiring a 90◦rotation in addition to translation (Fig-
+ures 1). To our knowledge, this is the first bed-to-wheelchair
+transfer of a medical mannequin by a humanoid completed
+without a caregiver in the loop.
+Closing the sim-to-real gap required addressing four chal-
+lenges, detailed in Appendix A: an unmodelled real-world
+impedance controller diverging from our idealised simulated
+PD law, matching the real robot’s strict stability monitoring,
+which halts execution if the Zero-Moment Point exits its sup-
+port polygon; eliminating large contact forces on the wheelchair
+that would tip it in reality but were invisible to a fixed simulated
+chair; and precisely calibrating the simulated scene, including
+the mannequin’s shape, to match the physical setup. Even so,
+replaying the same trajectory did not always yield the same out-
+come, and we observed failures alongside successful rollouts.
+This demonstration shows that the learned strategy is physically
+realisable; it is not a full closed-loop hardware validation study.
+Discussion
+SIE, IGT, and HOP supply just enough structure for whole-
+body, contact-rich, long-horizon transport where an ablated
+RL baseline fails. Applying our method to a new task requires
+a small set of designer choices: robot, object, and goal key-
+points; interaction edges that gate transport; a coarse, hinted
+object path; and completion tolerances. We see this as a light
+design burden compared with gathering teleoperated or human
+demonstrations for every new object, scene, and goal. Criti-
+cally, the guidance is a hint instead of a rule: the SIE/IGT/HOP
+reward terms contribute only a small fraction of total return
+(e.g., 5-10%, Figure 2), so the policy remains free to adopt an
+alternative strategy for the guidance terms are zero. In practice,
+it often approximately follows the suggested engagement and
+path early on, then departs when beneficial.
+One may ask why a general-purpose humanoid controlled
+by a learned RL policy is needed, rather than alternatives such
+as a robotic hoist or bed-mounted transfer system. We see a
+general-purpose humanoid as one attractive path alongside spe-
+cialised devices such as robotic wheelchairs and exoskeletons.
+One mobile platform can share sensing and control advances
+across many caregiving tasks, so hardware and software effort
+need not be rebuilt for each new assistive function. In addition,
+a free-moving humanoid can, in principle, accompany a person
+beyond the bedside into settings that remain largely inaccessi-
+6
+
+
+ble today, such as rugged terrain or commercial air travel [24].
+Thus, we build on a long line of general-purpose humanoid
+caregiving robots. Between 2006 and 2015, a series of Japanese
+humanoids demonstrated the first bed-to-chair transfers of hu-
+mans (RI-MAN [25], RIBA [1], TWENDY-ONE [26]). Those
+systems were semi-autonomous: execution relied on a pre-
+defined trajectory, with a caregiver in the loop to perform key
+sub-actions (e.g., lifting the legs) and make fine adjustments
+for individual human properties (e.g., height).
+Achieving full autonomy raises a related question of learn-
+ing paradigm. More recently, model-based approaches have
+generated desired contact forces for autonomous assistance via
+whole-body quadratic programming, for sit-to-stand [27] and
+arm repositioning [28], and via motion planning for supine-to-
+lateral repositioning [29]. These approaches offer valuable
+safety guarantees, but their reliance on an accurate model
+makes them harder to apply when the human, an unpredictable
+agent rather than a passive object, is difficult to plan for [30].
+Imitation learning (IL) trades this modelling burden for a differ-
+ent one: recent approaches replicate teleoperated repositioning
+manoeuvres, such as sitting up in bed [31], offering a simpler
+route to competent behaviour, though by construction repro-
+ducing only a fixed demonstrated trajectory limits their ability
+to react to unpredictable human behaviour at test time. RL
+instead offers closed-loop, dynamically adaptive policies well
+suited to this unpredictability, while also exploiting a robotic
+caregiver’s high-torque actuators, non-biological ranges of mo-
+tion, and superhuman stability, rather than mimicking human
+caregiver technique constrained by spinal vulnerability [14].
+We see these paradigms as complementary rather than compet-
+ing: combining RL’s adaptability with the safety guarantees
+of model-based control, or the sample efficiency of imitation
+learning, is a promising future direction.
+Having motivated both choices, a further question is how
+close this brings us to deploying with an actual human rather
+than a mannequin (Figure 5(c)). Two barriers remain: motor
+strength and safety, and resolving them defines our main direc-
+tions for future work. Holding a 50 kg person (and own 25 kg
+arm) at 0.5 m requires each shoulder motor to supply approxi-
+mately 375 Nm, above AIREC’s current rated 220 Nm; stronger
+motors exist, so the limit is engineering rather than physics.
+Safety is more fundamental as a typical neural-network policy
+offers no certificate that small shifts in state will not produce
+unsafe actions. Progress on certifiable robustness for neural
+control in safety-critical settings [32] is one path toward clos-
+ing that gap. More fundamentally, we view whole-body tactile
+sensing as imperative for future iterations, both to relax the
+framework’s dependence on precise object keypoint percep-
+tion and to ensure human safety, comfort, and robustness to
+dynamic motion, slippage, and occlusion during real physical
+contact. Compliant, force-limited whole-body control [33,34]
+is a complementary path toward safer interaction even before
+such sensing is mature. Resolving the RL trilemma on this
+caregiving testbed is a step toward assistive autonomy; human
+deployment still requires the barriers above to be addressed.
+Methods
+We introduce three generalisable ideas to guide learning toward
+effective solutions in whole-body, contact-rich, long-horizon
+RL: Sparse Interaction Edges (SIE), Interaction Gated Trans-
+port (IGT), and Hinted Object Path (HOP), plus Analytical
+Bandwidth Computation (ABC) for reward scaling. All four
+act only through the MDP’s observation and reward and are
+compatible with any RL algorithm. The total reward is the sum
+of our guidance reward, and a more typical task reward:
+Rtotal = Rguidance +Rtask
+(1)
+Rguidance = RSIE
+|{z}
+reach
++σIGTRHOP
+|
+{z
+}
+transport
+(2)
+RSIE drives reaching, and σIGTRHOP drives gated transport
+along a hinted path. The task reward covers fine object place-
+ment, robot reset, and sparse success or stability terms (Ap-
+pendix C).
+Sparse Interaction Edges (SIE)
+Standard RL baselines typically observe joint configurations [5]
+and sometimes end-effector poses [9, 22], paired with task-
+space rewards such as object-to-goal or end-effector-to-object
+distance. We hypothesise that this representation is insufficient
+for whole-body manipulation, leading to poor exploration. Sev-
+eral recent works build explicit spatial representations between
+robot and object, but for purposes distinct from resolving this
+exploration problem directly. OmniRetarget [7] constructs an
+interaction mesh over robot, object, and terrain keypoints, dat-
+ing back over a decade to early interaction-mesh-based motion
+adaptation [35], but uses it only to improve motion-retargeting
+quality. The RL policy itself remains blind to this structure, ob-
+serving basic proprioception and tracking a reference trajectory
+precisely. AnyBody [36] similarly guides whole-body control
+via a sparse set of robot keypoints, but for motion tracking
+alone, with no object or manipulation task. Yuan et al. [37]
+instead represent robot-human interaction through a topology-
+based Writhe matrix, demonstrating sim-to-real transfer of
+a dual-arm holding policy for swimmer rescue. In contrast,
+Zheng et al. [6] perceive robot-object interaction through a
+latent neural signed-distance representation computed by a pre-
+trained network, relying on motion priors to accelerate learning
+in long-horizon, contact-rich tasks.
+None of these representations is used to directly shape both
+what the policy observes and what it is rewarded for. We in-
+stead resolve this representation mismatch by unifying state
+and reward through Sparse Interaction Edges: a lightweight,
+hand-specified set of keypoints on the robot and manipulated
+object, connected by 3D spatial edge vectors, requiring no
+reference motion, motion priors, or latent perception. For-
+mulating the reward as a scalar field over these edge lengths
+aligns the optimisation gradient with the policy’s observation
+features, accelerating convergence in whole-body tasks. The re-
+sulting low-dimensional topology also acts as a compact map,
+projecting the high-dimensional configuration space onto a
+task-relevant manifold.
+Construction.
+Let Nr, No, and Ng be the numbers of robot,
+object, and goal keypoints, with Ng = No. Each robot keypoint
+maps to one object keypoint, and several robot keypoints may
+share an object keypoint, e.g., both hands mapping to a single
+7
+
+
+to counter random object forces, agent learns to hold the object more securely
+with Hinted Object Path, agent is finally able to place the ball inside the box
+with Interaction Gated Transport, agent maintains control of the ball, holding it at the side of the box
+with Sparse Interaction Edges, agent uses whole body to throw the ball, lands at side of the box
+ RL baseline agent uses one hand to push the ball in the direction of the goal
+SIE
+IGT
+HOP
+SIE
+IGT
+HOP
+IGT
+SIE
+HOP
+RL baseline
+Our method
+HOP
+IGT
+SIE
+Our method + 
+random object 
+peturbation
+Fig. 6
+Method ablation on the Ball environment. Starting from the ablated RL baseline, SIE, IGT, and HOP are enabled in sequence to
+highlight the direct effect of each method on the behaviour rollout. In the final panel, the agent is trained with random force perturbations applied
+to the object (red arrows). Note that the actual HOP waypoint tolerance is set to 0.5 m, but the waypoints are sized down for visualisation.
+box centroid. Keypoint placement is left to the designer: key-
+points can sit anywhere on or within the robot or object, and ob-
+ject keypoints need not be uniformly distributed; the topology
+can instead be tailored to task-relevant geometry such as contact
+points, grasp regions, or articulated structure. This construc-
+tion scales from a minimal single-keypoint-per-set topology
+to a dense interaction mesh, trading representational richness
+against observation dimensionality. These robot-object edge
+vectors form the basis of both the agent’s observation space and
+its reward function. The robot’s keypoints are first drawn to
+the corresponding object keypoints via the reach reward RSIE:
+the mean normalised distance across all robot-object keypoint
+pairs. Euclidean distances are mapped to (0,1] via a hyperbolic
+tangent transform (Eq. 3), giving a smooth, non-vanishing gra-
+dient with a “funnel” effect that steepens near the target. An
+offset b ensures maximum reward is attained at the object’s
+boundary (e.g., its radius) rather than its centre; the scale kSIE
+is derived by ABC.
+D(d,k) = 1−tanh
+d
+k
+
+(3)
+RSIE = 1
+Nr
+Nr
+∑
+i=1
+D
+
+dSIE
+i
+−b, kSIE
+
+(4)
+Implementation.
+We use eight robot keypoints (mobile base,
+chest, upper arms, forearms, and hands). For Ball, one ob-
+ject keypoint at the centre receives all robot mappings. For
+Human, we find that five keypoints are sufficient to capture
+pose (shoulders, thighs, and waist). We map robot hands to the
+human’s left shoulder and thigh, and robot upper/lower arms to
+the human’s right shoulder and thigh (Figure 3).
+Interaction Gated Transport (IGT)
+The primary objective of pick-and-place is to translate each
+object keypoint to a unique goal keypoint, and standard trans-
+portation rewards accordingly measure only object-to-goal dis-
+8
+
+
+placement (e.g., [5, 9, 22]). We found that ungated object-
+to-goal rewards produced degenerate policies that used only
+part of the robot, threw the object, or pushed it. Instead, we
+wanted the robot to stay close to the object throughout trans-
+port. We therefore introduce Interaction Gated Transport (IGT),
+which applies a soft gate to the transport reward using the same
+SIE-based formulation, contingent on proximity rather than
+contact. This keeps the observation and reward spaces aligned,
+requires no reference motion, and makes transport contingent
+on sustained whole-body interaction rather than on object dis-
+placement alone.
+A related line of work constrains whole-body manipulation
+via explicit contact goals, rather than leaving the manner of con-
+tact unconstrained as above. WoCoCo [10] decomposes loco-
+manipulation into sequential contact stages with pre-defined
+contact goals (e.g., the side of a box); Lin et al. [9] similarly
+specify desired contact locations for dexterous fingertips, with
+an associated contact reward; and MaskedManipulator [38]
+identifies which body parts should be in contact and rewards
+proximity to a reference motion’s contact configuration. Each
+of these requires a well-defined notion of contact, e.g., a loca-
+tion on the object surface, which is unavailable in tasks like
+Ball, where the sole object keypoint sits at an uncontactable
+centre.
+Construction.
+We gate the object transport reward with a
+sigmoid, which acts like an activation function; we choose a
+sigmoid over a binary gate to give smoother gradients. Let
+d = maxj∈J dSIE
+j
+denote the maximum SIE edge length within
+a chosen subset J of robot keypoints. The gate is then:
+σIGT =
+1
+1+e(d−d0)/k
+(5)
+which rises toward 1 as those edges shorten and unlocks RHOP.
+Implementation.
+For Ball, J is all edges and d0 = 0.5 m.
+For Human, J includes the hands and lower arms and d0 = 0.3
+m, requiring the robot to keep the human in its arms during
+transport.
+Hinted Object Path (HOP)
+Jointly discovering robot and object trajectories is high-
+dimensional, and endpoint-only rewards often drive the agent
+into obstacles. We hypothesise this is a local-minima problem:
+an endpoint-based reward directs the agent along the direction
+of steepest reward accumulation, which in free space coincides
+with the direct path to the goal, but in contact-rich settings with
+obstacles, or narrow openings, this direction frequently points
+into a collision boundary rather than around it.
+Nearly every RL method for whole-body manipulation that
+uses a reference, whether joint states, robot keypoints, or end-
+effector waypoints, guides the robot’s own motion with it [5,
+7,8,36,38,39]. To the best of our knowledge, no prior work
+in the domain of RL-driven humanoid manipulation provides
+a standalone object’s trajectory as a learning reference. We
+propose the Hinted Object Path, an explicit hint trajectory for
+the object itself from start to goal, for each object-goal pair
+(Figure 4). The reward is defined over this full path to the goal
+rather than the object’s final pose alone, redirecting the gradient
+of fastest accumulation around collision boundaries rather than
+into them. Any trajectory generation method is compatible
+with HOP.
+Construction.
+Each object keypoint has a path of NHOP way-
+points with tolerance δHOP. The observation includes distances
+to the next waypoints and path completion. The reward com-
+bines path tracking and progress. The waypoints have to be
+acquired in order.
+Rtracking = 1
+No
+No
+∑
+m=1
+D
+
+dHOP
+m
+, ktracking
+
+(6)
+Rprogress = 1
+No
+No
+∑
+m=1
+1
+h
+dHOP
+m
+< δHOP
+i
+(7)
+RHOP = Rtracking +λRprogress
+(8)
+with ktracking from ABC and λ chosen so cumulative progress
+is roughly three-fold the tracking. Final placement precision is
+defined in the task reward Rtask (Appendix C ).
+Implementation.
+We instantiate paths as quartic B´ezier
+curves. The start and end points of the curves are the initial
+and target human poses respectively. The control points were
+chosen by visualising and refining the paths in a 3D view of
+the scene (further details in Appendix B). For Ball, NHOP = 10
+and δHOP = 0.5 m; for Human, NHOP = 100 and δHOP = 0.25
+m.
+Analytical Bandwidth Computation (ABC)
+For all dense reward components computed via the hyperbolic
+tangent transform D, we normalise distances and control gradi-
+ent steepness via a bandwidth parameter kD. The disadvantage
+of this formulation is that kD requires careful tuning to ensure
+the reward is meaningfully above zero at the initial distance –
+too large a kD yields a vanishing gradient at onset, while too
+small saturates the reward prematurely. This is typically tuned
+empirically, which is time-consuming. Recent work proposes
+bi-level optimisation to find the optimal bandwidth [40]. In-
+stead, we propose Analytical Bandwidth Computation (ABC):
+rather than hand-tuning kD, we specify a desired initial re-
+ward value r0 at a known initial (offset) distance δ, such that
+D(δ,kD) = r0, and solve for kD directly:
+kD(δ,r0) =
+2δ
+ln
+
+2−r0
+r0
+
+(9)
+We use r0 = 0.05 everywhere. For SIE, δ is the initial mean
+robot–object distance; for tracking and precision, δ is δHOP; for
+reset, δ is estimated from post-placement joint error averaged
+over 100 samples.
+Experimental setup
+Environments.
+We evaluate our agent in three environments,
+Ball, Human (near), and Human (far), built in Isaac Lab [41],
+with the control policy running at 30 Hz and the physics en-
+gine at 120 Hz. In Ball, the object is a rigid sphere, 50 cm
+in diameter, with randomised mass between 2.5–7.5 kg, trans-
+ported from a tabletop surface into a raised box more than
+9
+
+
+2.5 m away. In Human (near) and Human (far), the object is an
+articulated human model composed of spheres and cylinders,
+with 15 revolute joints (head, neck, chest, shoulder pitch and
+roll, elbows, hip pitch and roll, knees), a height of 155 cm,
+and randomised mass between 11–33 kg, transferred from a
+bed into a wheelchair; Human (far) additionally places the
+wheelchair at a greater distance, with an obstacle in the way.
+Agent.
+Observations combine proprioception (joints, torques,
+command errors, centre of mass, planar ZMP) with SIE, IGT,
+and HOP features (Table 1 in Appendix D). Actions are 35-
+DoF joint-position deltas for AIREC (head, torso, arms, hands,
+omnidirectional base), slew-limited and smoothed, then tracked
+by a low-level PD controller (gains and limits in Appendix).
+Episodes use environment-specific warm-start poses with ran-
+domised base, object, mass, and goal; they terminate on tip-
+over, dropped object, excessive displacement, or numerical
+failure.
+Resources
+This research was done on a single NVIDIA RTX5090 GPU.
+This work was supported by JST Moonshot R and D, Grant No.
+JPMJMS263C.
+Supplementary information
+All resources (code, logs, plot generation) can be found on the
+project website.
+Author contributions
+E.M. led the conceptualisation, algorithm design, and method-
+ology, developed the simulation environment, trained the poli-
+cies, and conducted the experimental evaluation and real-world
+trials, and drafted the manuscript. T.T. proposed the use of soft
+gates in place of hard staged rewards. B.S. proposed bypassing
+explicit object path discovery, which led to the formulation
+of HOP. R.Al. contributed to the implementation of HOP and
+real-world success for the bed-to-chair task and, together with
+Y.W., investigated the robot controller to support sim-to-real
+transfer. T.M. led the experimental support for physical robot
+experiments, with additional support from R.Al., T.T., and Y.W.
+R.An., O.M.A. and S.V. contributed to conceptualisation and su-
+pervised the project. S.V. additionally administered the project.
+Resources were provided by T.M., S.S. and T.O. Funding was
+acquired by N.S., S.S., T.O. and S.V. All authors contributed to
+reviewing and editing the manuscript.
+References
+[1] Toshiharu Mukai, Shinya Hirano, Hiromichi Nakashima,
+Yo Kato, Yuki Sakaida, Shijie Guo, and Shigeyuki Hosoe.
+Development of a nursing-care assistant robot riba that
+can lift a human in its arms. In International Confer-
+ence on Intelligent Robots and Systems, pages 5996–6001,
+2010.
+[2] Elia Kaufmann, Leonard Bauersfeld, Antonio Loquercio,
+Matthias M¨uller, Vladlen Koltun, and Davide Scaramuzza.
+Champion-level drone racing using deep reinforcement
+learning. Nature, 620(7976):982–987, 2023.
+[3] Nikita Rudin, Junzhe He, Joshua Aurand, and Marco Hut-
+ter. Parkour in the wild: Learning a general and extensi-
+ble agile locomotion policy using multi-expert distillation
+and rl fine-tuning. The International Journal of Robotics
+Research, 2025.
+[4] Elle Miller,
+Trevor McInroe,
+David Abel,
+Oisin
+Mac Aodha, and Sethu Vijayakumar. Enhancing tactile-
+based reinforcement learning for robotic control. In Neu-
+ral Information Processing Systems (NeurIPS), 2025.
+[5] Jose A Barreiros, Aykut ¨Ozg¨un ¨Onol, Mengchao Zhang,
+Sam Creasey, Aimee Goncalves, Andrew Beaulieu,
+Aditya Bhat, Kate M Tsui, and Alex Alspach. Learn-
+ing contact-rich whole-body manipulation with example-
+guided reinforcement learning. Science Robotics, 10(105),
+2025.
+[6] Chunxin Zheng, Kai Chen, Zhihai Bi, Yulin Li, Liang Pan,
+Jinni Zhou, Haoang Li, and Jun Ma. Embracing bulky
+objects with humanoid robots: Whole-body manipulation
+with reinforcement learning. In 2026 IEEE International
+Conference on Robotics and Automation (ICRA), pages
+6089–6096. IEEE, 2026.
+[7] Lujie Yang, Xiaoyu Huang, Zhen Wu, Angjoo Kanazawa,
+Pieter Abbeel, Carmelo Sferrazza, C. Karen Liu, Rocky
+Duan, and Guanya Shi.
+Omniretarget:
+Interaction-
+preserving data generation for humanoid whole-body
+loco-manipulation and scene interaction. ICRA, 2026.
+[8] Alberto Rodriguez, Shane Rozen-Levy, and Vinay
+Kamidi. Training a humanoid robot for hard work. Boston
+Dynamics Blog, May 2026.
+[9] Toru Lin, Kartik Sachdev, Linxi Fan, Jitendra Malik, and
+Yuke Zhu. Sim-to-real reinforcement learning for vision-
+based dexterous manipulation on humanoids. Conference
+on Robot Learning (CoRL), 2025.
+[10] Chong Zhang, Wenli Xiao, Tairan He, and Guanya Shi.
+Wococo: Learning whole-body humanoid control with se-
+quential contacts. Conference on Robot Learning (CoRL),
+2024.
+[11] Aude G. Billard. Should humanoid robots in every house-
+hold really be a top priority? Science, 393(6812):aek2193,
+2026.
+[12] Hannah Ritchie and Max Roser. Age structure. Our World
+in Data, 2019. https://ourworldindata.org/age-structure.
+[13] Abdulrahman M Khamaj, Abdulelah M Ali, and
+Mohd Mukhtar Alam. Investigating factors affecting mus-
+culoskeletal disorders: Predictive models for identifying
+caregivers at risk. Work, 72(4):1311–1320, 2022.
+[14] Jacob J. Banks, Jie Zhou, Chelsea O. Riehle, and Neal E.
+Wiggermann. Biomechanical stresses on healthcare work-
+ers during manual patient bed-to-chair transfers. Inter-
+national Journal of Industrial Ergonomics, 101:103584,
+2024.
+10
+
+
+[15] N. L. Noble and N. L. Sweeney. Barriers to the use of
+assistive devices in patient handling. Workplace Health
+and Safety, 66(1):41–48, 2018.
+[16] Jorn Vogel, Daniel Leidner, Annette Hagengruber,
+Michael Panzirsch, Berthold Bauml, Maximilian Den-
+ninger, Ulrich Hillenbrand, Lioba Suchenwirth, Peter
+Schmaus, Marco Sewtz, Adrian Simon Bauer, Thomas
+Hulin, Maged Iskandar, Gabriel Quere, Alin Albu-
+Schaffer, and Alexander Dietrich.
+An ecosystem for
+heterogeneous robotic assistants in caregiving: Core func-
+tionalities and use cases. Robotics and Automation Mag-
+azine, 28(3):12–28, 2021.
+[17] Evan Ackerman. This robot could be the key to empow-
+ering people with disabilities. IEEE Spectrum, 2023.
+[18] Zackory Erickson, Vamsee Gangaram, Ariel Kapusta,
+C Karen Liu, and Charles C Kemp. Assistive gym: A
+physics simulation framework for assistive robotics. In
+International Conference on Robotics and Automation
+(ICRA), pages 10169–10176, 2020.
+[19] Leonard Hinckeldey, Elliot Fosong, Rimvydas Rubavi-
+cius, Elle Miller, Trevor McInroe, Fan Zhang, Patri-
+cia Wollstadt, Stefano V Albrecht, and Subramanian
+Ramamoorthy.
+Assistax:
+A multi-agent hardware-
+accelerated reinforcement learning benchmark for assis-
+tive robotics. arXiv:2507.21638, 2025.
+[20] Yijun Gu and Yiannis Demiris. Learning bimanual ma-
+nipulation policies for bathing bed-bound people. In In-
+ternational Conference on Intelligent Robots and Systems
+(IROS), pages 8936–8943, 2024.
+[21] Tamon Miyake, Namiko Saito, Tetsuya Ogata, Yushi
+Wang, and Shigeki Sugano. Deep predictive learning
+with proprioceptive and visual attention for humanoid
+robot repositioning assistance. In RSJ International Con-
+ference on Intelligent Robots and Systems (IROS), pages
+8019–8026, 2025.
+[22] Carmelo Sferrazza, Dun-Ming Huang, Xingyu Lin,
+Youngwoon Lee, and Pieter Abbeel. Humanoidbench:
+Simulated humanoid benchmark for whole-body locomo-
+tion and manipulation. arXiv:2403.10506, 2024.
+[23] John Schulman, Filip Wolski, Prafulla Dhariwal, Alec
+Radford, and Oleg Klimov. Proximal policy optimization
+algorithms. arXiv:1707.06347, 2017.
+[24] David Gotti,
+Ernesto Morales,
+Franc¸ois Routhier,
+Jonathan Riendeau, and Ahmed Hadj Hassen. Dehu-
+manizing air travel: a scoping review on accessibility
+and inclusion of people with disabilities in international
+airports. Frontiers in Rehabilitation Sciences, Volume 5,
+2024.
+[25] Toshiharu Mukai, Masaki Onishi, Tadashi Odashima,
+Shinya Hirano, and Zhiwei Luo. Development of the
+tactile sensor system of a human-interactive robot “ri-
+man”. Transactions on Robotics, 24(2):505–512, 2008.
+[26] Hiroyasu Iwata and Shigeki Sugano. Design of human
+symbiotic robot twendy-one. In International Conference
+on Robotics and Automation, pages 580–586, 2009.
+[27] Hugo Lef`evre, Tomohiro Chaki, Tomohiro Kawakami,
+Arnaud Tanguy, Takahide Yoshiike, and Abderrahmane
+Kheddar.
+Humanoid-human sit-to-stand-to-sit assis-
+tance. Robotics and Automation Letters, 10(2):1521–
+1528, 2025.
+[28] Anastasia Bolotnikova, S´ebastien Courtois, and Abder-
+rahmane Kheddar. Adaptive task-space force control for
+humanoid-to-human assistance. Robotics and Automation
+Letters, 6(3):5705–5712, 2021.
+[29] Misa Matsumura, Tamon Miyake, Woohyeok Choi,
+Shigeki Sugano,
+Keiichi Nakagawa,
+and Etsuko
+Kobayashi. Automated repositioning from supine to lat-
+eral with a humanoid robot based on body modeling. In
+International Conference on Intelligent Robots and Sys-
+tems (IROS), pages 16658–16664, 2025.
+[30] Aude Billard and Danica Kragic. Trends and challenges
+in robot manipulation. Science, 2019.
+[31] Tamon Miyake, Namiko Saito, Tetsuya Ogata, Yushi
+Wang, and Shigeki Sugano.
+Dual-arm motion gen-
+eration for repositioning care based on deep predic-
+tive learning with somatosensory attention mechanism.
+arXiv:2407.13376, 2024.
+[32] Ian R Manchester, Ruigang Wang, and Nicholas H Bar-
+bara. Neural networks in the loop: Learning with stability
+and robustness guarantees. Annual Review of Control,
+Robotics, and Autonomous Systems, 9, 2026.
+[33] Qingzhou Lu, Yao Feng, Baiyu Shi, Michael Piseno,
+Zhenan Bao, and C Karen Liu. Gentlehumanoid: Learn-
+ing upper-body compliance for contact-rich human and
+object interaction.
+Robotics and Automation Letters,
+2026.
+[34] Gabriel B Margolis, Michelle Wang, Nolan Fey, and
+Pulkit Agrawal. Softmimic: Learning compliant whole-
+body control from examples. In International Conference
+on Robotics and Automation (ICRA), 2026.
+[35] Shin’ichiro Nakaoka and Taku Komura. Interaction mesh
+based motion adaptation for biped humanoid robots. In
+International Conference on Humanoid Robots, pages
+625–631, 2012.
+[36] Shuning Li, Sikai Li, Jiachen Li, and Mingyu Ding. Any-
+body: Free-form whole-body humanoid control from ar-
+bitrary keypoint guidance. arXiv:2606.29209, 2026.
+[37] Weihao Yuan, Kaiyu Hang, Haoran Song, Danica Kragic,
+Michael Y. Wang, and Johannes A. Stork. Reinforcement
+learning in topology-based representation for human body
+movement with whole arm manipulation. In 2019 Inter-
+national Conference on Robotics and Automation (ICRA),
+2019.
+11
+
+
+[38] Chen Tessler, Yifeng Jiang, Erwin Coumans, Zhengyi
+Luo, Gal Chechik, and Xue Bin Peng. Maskedmanipu-
+lator: Versatile whole-body manipulation. In ACM SIG-
+GRAPH Asia 2025 Conference Proceedings, 2025.
+[39] Ayumu Iwata, Kento Kawaharazuka, Keita Yoneda,
+Takahiro Hattori, and Kei Okada. Robust brachiation
+on a life-sized dual-arm robot using waypoint-guided
+reinforcement learning. arXiv:2608.17320, 2026.
+[40] Weiji Xie, Jinrui Han, Jiakun Zheng, Huanyu Li, Xinzhe
+Liu, Jiyuan Shi, Weinan Zhang, Chenjia Bai, and Xuelong
+Li. Kungfubot: Physics-based humanoid whole-body
+control for learning highly-dynamic skills. In Neural
+Information Processing Systems (NeurIPS), 2025.
+[41] Mayank Mittal, Pascal Roth, James Tigue, Antoine
+Richard, Octi Zhang, Peter Du, Antonio Serrano-Munoz,
+Xinjie Yao, Ren´e Zurbr¨ugg, Nikita Rudin, et al. Isaac lab:
+A gpu-accelerated simulation framework for multi-modal
+robot learning. arXiv:2511.04831, 2025.
+A. Sim-to-real transfer
+To successfully transfer rollouts from trained policies to the
+physical AIREC robot, we had to overcome several sim-to-real
+challenges.
+1) Controller mismatch. Simulation relied on an ideal PD
+torque law (τ = Kp(θ cmd −θ) −Kd ˙θ), whereas the physical
+robot operates under an unmodelled impedance controller. This
+mismatch produced divergent torque and joint position signals
+that escalated with joint velocity (Figure 7). We mitigated the
+mismatch by replaying the trajectories at a reduced frequency
+of 10 Hz (1/3× the training frequency).
+2) Stability monitoring. The real robot has strict stability
+safety monitoring to prevent tipping over. An emergency stop
+triggers if the Zero-Moment Point (ZMP) exits a 12×12 cm2
+support polygon. We match this behaviour in simulation via
+a termination condition and a −1000 penalty, and add the
+planar ZMP, centre-of-mass position, and acceleration to the
+observation so the agent can implicitly learn this constraint.
+3) Wheelchair collision avoidance. Fixing the wheelchair po-
+sition in simulation allowed policies that exerted large forces on
+the chair to aid placement, which would tip the physical chair
+in the real world. We eliminated this behaviour by inflating
+the wheelchair’s collision meshes, which removed robot-chair
+contact in the real world.
+4) Scene alignment. We calibrated the simulated environ-
+ment (bed, wheelchair) to mirror the physical objects. While
+we trained with position randomisations, the object positions
+for open-loop replay had to match the physical scene. For the
+mannequin, we measured each link and approximated its shape
+with cylinders.
+5) Safety stops from torque and joint-position limits. The real
+robot enforces hard safety stops when commanded torques or
+joint position errors exceed rated limits. These stops occurred
+frequently during human placement, where the combination of
+the human’s weight and the precision required to lower them
+into the wheelchair pushed several joints close to their limits.
+We could not overcome this limitation directly.
+-0.12
+-0.06
+0.00
+m
+base y
+75
+90
+deg
+torso 2
+-50
+-25
+0
+deg
+head 1
+-30
+-15
+deg
+left arm 2
+0
+20
+40
+60
+80
+step
+-15
+0
+15
+deg
+right arm 2
+simulation
+real robot
+sim2real gap
+Fig. 7
+Joint positions and joint torques for a single bed-to-chair
+rollout in Isaac Lab and on the real robot. Torques are shown for
+arm joints only (the joints with torque sensors). Joint positions track
+the commands with a small lag. Torque profiles differ substantially
+because simulation uses an ideal PD law, whereas the robot uses
+cascading impedance controllers (exact equation unknown).
+Physical setup.
+We conducted trials in a replica bed-
+room, with an adjustable-height hospital bed and a standard
+wheelchair (Figure 1). We used a medical training mannequin
+made from PVC with realistic joint motions, height 155 cm
+and weight 15 kg, dressed in jeans and a jumper. To reduce
+complexity and sim-to-real mismatch, we loosely wrapped the
+wrists and knees together. At present, workspace ergonomics
+constrains deployment. Reaching down to a standard 45 cm-
+high wheelchair seat forced a trade-off between grasp security
+and balance, which taller, adjustable seating (already available
+in consumer power wheelchairs, 50–80 cm) would relax.
+B. Hinted Object Path construction
+Methods instantiate HOP with quartic B´ezier curves.
+A
+quartic B´ezier curve is defined by five control points in R3,
+P0,P1,P2,P3,P4, and parameterised by t ∈[0,1]:
+B(t) = (1−t)4P0 +4(1−t)3t P1 +6(1−t)2t2 P2
++4(1−t)t3P3 +t4P4.
+(10)
+The curve starts at P0 and ends at P4, set to the object’s ini-
+tial and goal positions, respectively. The intermediate control
+points shape the trajectory: the curve leaves P0 heading toward
+P1, and arrives at P4 from the direction of P3. To avoid control
+points scaling with the number of object keypoints, we place
+control points on the central object keypoint only, and derive
+12
+
+
+the remaining keypoints’ control points from the object’s con-
+figuration at the relevant path endpoint. Offsets for P1 and P2
+are taken relative to the central keypoint in the object’s initial
+configuration (e.g., a human lying on the bed). The offset for
+P3 is taken relative to the central keypoint in the object’s goal
+configuration (e.g., a human seated in the chair).
+C. Task reward
+The task reward in Eq. 2 is
+Rtask = Rprecision +Rreset +cbonus −cstability.
+(11)
+Rprecision refines object placement once HOP has brought the
+object within its coarse tolerance δHOP. Rreset returns the robot
+to a default joint configuration θ reset once the object is success-
+fully placed. The reset reward is computed over a joint subset
+S ⊂{1,...,Nθ} corresponding to the torso, arms, and head.
+Restricting S this way lets the base move freely to disengage,
+and avoids the high-dimensional hand DoFs dominating the
+error. We additionally grant two sparse bonuses cbonus, once
+all object keypoints reach their goals and again once the robot
+returns to its default posture with the object still placed, and a
+sparse stability penalty cstability to discourage tipping.
+Rewarding placement precision at every timestep proved
+exploitable: the agent raced to the goal to accumulate reward
+for longer at the expense of precision. We instead reward
+progress in a dense signal ut = D(·,k), using its change rt =
+ut −ut−1 rather than its raw value. Summed over an episode,
+this telescopes to the net improvement, independent of the path
+taken:
+R =
+T
+∑
+t=1
+rt = uT −u0.
+(12)
+For precision, let uprecision
+t
+= 1
+No ∑No
+j=1 D(do2g
+j
+(t), ko2g). Then
+Rprecision = uprecision
+T
+−uprecision
+0
+.
+(13)
+For reset, let ureset
+t
+= D(MSES
+θ (t), kreset), with kreset from
+ABC, and
+MSES
+θ = 1
+|S| ∑
+i∈S
+(θi −θ reset
+i
+)2.
+(14)
+The reset signal must be suppressed whenever the object is
+not at the goal; otherwise, the agent can accrue reset reward
+by pushing the object aside during retreat. We introduce a
+precision gate σprecision, identical in form to IGT’s sigmoid:
+σprecision,t =
+1
+1+e(do2g
+t
+−do2g
+0
+)/ko2g
+,
+do2g
+t
+= max
+j
+do2g
+j
+(t).
+(15)
+The reset reward is then
+Rreset =
+T
+∑
+t=1
+σprecision,t ureset
+t
+.
+(16)
+D. Observations and actions
+Observation.
+The agent receives proprioception plus SIE,
+IGT, and HOP features (Table 1). Proprioception is identical
+across tasks: normalised joint positions, velocities, and torques;
+joint position and torque command errors; centre-of-mass posi-
+tion and acceleration; and planar ZMP,
+px = xcom −zcom ¨xcom
+¨zcom +g ,
+py = ycom −zcom ¨ycom
+¨zcom +g ,
+(17)
+with g = 9.81m/s2. Including the ZMP and terminating if it
+leaves the support polygon discourages unstable whole-body
+configurations adopted only to accelerate task completion.
+Robot and object keypoint states are expressed relative to the
+robot base, with SIE and object-to-goal edges. Robot keypoints
+carry Cartesian position, velocity, and a 6D continuous rota-
+tion. Object keypoints carry Cartesian position and velocity.
+Goal keypoints carry Cartesian position (Ng = No). Each SIE
+(and object-to-goal) edge contributes a distance vector, scalar
+distance, relative velocity, and normalised scalar distance. Ob-
+servation size therefore scales with keypoint count.
+Actions.
+AIREC has 35 DoF (head 3, torso 3, dual arms
+14, hands 12, omnidirectional base 3). The policy outputs a
+joint-position delta a ∈R35. We slew-limit the raw delta to
+˙θslew = 1 rad/s on revolute joints, then apply an exponential
+moving average with α = 0.1. The result is integrated to a
+target joint position and tracked by a low-level PD controller,
+with commanded torque clipped to the actuator limit and joint
+velocity clipped to 50% of the hardware limit in simulation.
+E. Simulation details
+Scene modelling.
+The bed and wheelchair are modelled to
+match their real-world counterparts (Figure 1). The bed com-
+prises three prisms: a rigid base, a compliant mattress, and a
+compliant pillow. The wheelchair matches a standard Japanese
+model with a compact frame (40 cm seat width, versus the
+46 cm Western standard), so insertion tolerance is tight. Place-
+ment into a wheelchair is harder than into an ordinary chair
+because armrests, side bars, and footrests restrict the viable
+placement space. For open-loop physical replay, evaluation
+episodes begin with the robot entirely behind the human, rather
+than with the mannequin pre-aligned with the robot’s hands as
+during training.
+Initialisation, randomisation, and termination.
+In Ball,
+the robot starts 0.3 m from the surface with outstretched arms.
+In the Human environments, it starts 0.6 m away in a lifting
+configuration. We randomise robot base pose, object pose,
+object joints (when applicable), object mass, and goal pose.
+Episodes terminate when (i) the robot base tilts beyond stability
+thresholds, (ii) the manipulated object falls below a height
+threshold, (iii) the object exceeds a distance from the origin, or
+(iv) a numerical instability is detected.
+F. RL training details
+We use clipped PPO [23]. Parallelism is 4096 environments
+for Ball and 2048 for both Human settings. Observations and
+values are scaled by running normalisers. The policy and
+critic are MLPs with hidden layers [512,256,128] and ELU
+activations. The policy outputs a Gaussian with a tanh mean
+head and a state-dependent logσ head. We use KL-adaptive
+learning-rate scheduling. Table 2 lists the shared PPO recipe;
+13
+
+
+Table 1
+Agent observation space.
+Category
+Component
+Symbol
+Description
+Proprioception
+Joint states
+ˆθ, ˆ˙θ, ˆτ,∆a
+Norm. joint pos., vel., torques, and action deltas.
+Control errors
+eθ,eτ
+Position (θcmd −θ) and torque clipping errors.
+Dynamics
+xcom, ¨xcom, px, py
+Centre-of-mass position, acceleration, and planar ZMP.
+SIE
+Robot keypoints
+{xr
+i , ˙xr
+i ,gi}Nr
+i=1
+Cartesian pos., vel., and 6D rotation.
+Object keypoints
+{xo
+j, ˙xo
+j}No
+j=1
+Cartesian pos. and vel., relative to robot base.
+Goal keypoints
+{xg
+j}No
+j=1
+Cartesian pos. of target, Ng = No.
+SIE edges
+dSIE, ˙dSIE,dSIE,D(dSIE)
+Robot-object edge vectors, speeds, scalars, and normalised scalars.
+IGT
+Interaction gate
+σIGT
+Soft-gate activation for object transport.
+HOP
+Waypoint distances
+dHOP
+m,1:h,dHOP
+m
+Distance to next h waypoints and scalar distance to the active waypoint,
+per object keypoint m.
+Path completion
+φm
+Path completion fraction, per object keypoint m.
+Precision/Reset
+Object-goal edges
+do2g, ˙do2g,do2g,D(do2g)
+Object-goal edges as for SIE.
+Reset error
+MSES
+θ
+MSE over torso, arm, and head joints.
+Precision gate
+σprecision
+Soft gate on the reset reward while the object remains at the goal.
+Fig. 8
+Pathways for imitation learning: mimicking a human demonstration (top), or teleoperating the robot (bottom). An expert teleoperator
+failed to lift the mannequin robustly with a high-fidelity puppet. The mannequin slipped under its own weight faster than the operator could
+compensate.
+within each environment, our method and the RL baseline use
+identical optimiser settings. Episode length is 10 s on Ball and
+Human (near), and 15 s on Human (far). On Human (far),
+we used a more conservative schedule (learning rate 3×10−4,
+ratio clip 0.15, 5 learning epochs) for training stability; the
+change was applied equally to both methods. With the default
+schedule, the RL baseline still plateaued.
+G. Teleoperation and imitation attempt
+Imitation offers two routes: mimicking a human caregiver, or
+teleoperating the robot. We argue that copying human caregiver
+technique is a limited path for physical assistance, since the
+technique is constrained by human mobility. We attempted the
+task via teleoperation with a high-fidelity robotic puppet, but
+an expert demonstrator failed to lift the mannequin robustly.
+Under the mannequin’s weight, it kept slipping, faster than the
+operator could react (Figure 8).
+Table 2
+PPO and training hyperparameters.
+Parameter
+Value
+Discount γ
+0.99
+GAE λ
+0.95
+Learning rate
+5×10−4
+Ratio clip
+0.2
+Value clip
+0.2
+Entropy coefficient
+0.001
+Value loss scale
+1.0
+Learning epochs
+8
+Mini-batches
+8
+Rollout horizon
+16
+Grad norm clip
+1.0
+14
