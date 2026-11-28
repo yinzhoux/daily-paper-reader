@@ -1,0 +1,1361 @@
+PhysVAM: Physics-oriented Future Value
+Action Model for Dynamic Object
+Manipulation
+Yuxiang Yang1, Jingbo Zhang2, Jiaru Zhong1, Junliang Chen1, Yirui Zhou1,
+Guangming Wang3, Haitao Lin2, Huaiyuan Xu1, Yi Wang1, Lap-Pui Chau1
+1Hong Kong Polytechnic University
+2Robotics X, Tencent
+3University of Cambridge
+Abstract
+Predicting future scene or object states does not necessarily reveal how robot–object inter-
+actions will advance or hinder a task. This challenge is particularly pronounced in dynamic
+robotic manipulation, where objects continue moving during perception and execution. Ef-
+fective action generation therefore requires not only modeling object dynamics but also
+anticipating how future interactions will shape task progress. To this end, we propose Phys-
+VAM, a Physics-oriented Future Value Action Model that represents anticipated interac-
+tions through their effects on future task progress. This value-based formulation provides
+task-directed foresight without reconstructing future visual states. Conditioned on current
+observations and historical object and robot motion, PhysVAM jointly learns action gener-
+ation and multi-horizon future-value prediction. The value branch learns horizon-speciﬁc
+latent representations through future task-value prediction from successful and failed trajec-
+tories. These future-value representations are integrated into the action policy through gated
+cross-attention, guiding action generation toward interactions that facilitate task success.
+Extensive simulation and real-world experiments demonstrate superior task success, with
+absolute success-rate improvements of 27.0 and 27.5 percentage points over the strongest
+baselines in simulation and real-world tasks, respectively.
+Date: November 19, 2026
+Project Page:
+https://metarobo.github.io/physvam.github.io/
+1
+Introduction
+Robotic manipulation is increasingly moving beyond static tabletop settings toward dynamic envi-
+ronments, where objects continue to move during robot perception and action execution [1, 2]. Suc-
+cessful manipulation therefore requires actions to remain coordinated with evolving robot–object
+interactions. Changes in object motion and contact timing can alter whether an intended interaction
+will succeed before its execution is complete. A central challenge is thus to learn predictive repre-
+sentations that anticipate how future interactions may affect task progress and guide timely action
+1
+arXiv:2611.26105v1  [cs.RO]  19 Nov 2026
+
+
+(B) Multi-horizon value predictions
+-0.5
+0.0
+0.5
+1.0
+0
+50
+100
+150
+Rollout time t (frame)
+(C) Performance comparison
+Simulation Success Rate (%) 
+0
+30
+60
+17.33
+DynamicVLA
+31.83
+PUMA
+58.83
+PhysVAM
+Real-world Success Rate (%) 
+1
+2
+3
+4
+Predicted value
+Horizon:
+h4
+h8
+h16
+h32
+1  Motion
+⋯
+2  Attempt
+⋯
+3  Reposition
+⋯
+4  Lift
+⋯
+5  Retreat
+5
+End
+0
+30
+60
+DynamicVLA
+PUMA
+64.17
+PhysVAM
+29.17
+36.67
+(A) Future modeling for dynamic manipulation
+Observed
+Imagined
+Imagined
+?
+!
+Position jump
+Shape distortion
+Missed grasp
+or
+(a) Visual future modeling
+May hallucinate future scenes. Interaction progress is not explicitly supervised.
+(b) Value-based future modeling (PhysVAM)
+At time t, PhysVAM predicts task progress at multiple future horizons.
+Aligned
+Now
+Contact
+Lift
+V(t+h4)
+0.66
+V(t+h8)
+0.67
+V(t+h16)
+0.69
+V(t+h32)
+0.75
+⋯
+⋯
+Special case: current-progress estimation without explicit future prediction
+Intended grasp
+Executed grasp
+t
+Missed
+Target moves before closure
+V(t) = 0.7
+Intended
+Failed
+Predicted task progress
+Realized task progress
+Current action
+Future-value features
+guide current action
+Possible subsequent task progress
+×
+×
+✓
+t
+Figure 1 Overview of PhysVAM. (A) Comparison of visual and value-based future modeling.
+Visual prediction may suffer from geometric inconsistencies and lacks explicit task-progress su-
+pervision. In contrast, PhysVAM predicts multi-horizon future values to guide action generation.
+The h = 0 special case illustrates how favorable current-progress estimates may still precede un-
+successful interactions. (B) Multi-horizon value predictions decrease following a missed grasp and
+increase during subsequent recovery and successful lifting, reﬂecting changes in anticipated task
+progress. (C) PhysVAM achieves the highest success rates among the compared methods in both
+simulation and real-world tasks.
+generation.
+Recent approaches pursue visual future modeling through future video generation [3, 4] and visual-
+feature prediction [5, 6]. These methods provide predictive context by modeling how scenes and
+objects may evolve. However, as illustrated in Fig. 1(A-a), generated futures may exhibit geo-
+metric distortions and inconsistent contact predictions, compromising their reliability for physical
+interaction [7]. More fundamentally, predicting future visual or object states alone does not ex-
+plicitly characterize how anticipated robot–object interactions will advance or hinder task progress.
+These limitations motivate a future modeling objective that directly reﬂects the task consequences
+of physical interactions.
+We approach future modeling from a task-value perspective, representing anticipated robot–object
+interactions through their effects on future task progress. Rather than reconstructing future vi-
+sual states, this perspective models how task progress is expected to evolve. Existing value-based
+approaches have demonstrated the usefulness of task evaluation for policy improvement [8–10].
+However, current-value assessment does not explicitly characterize how task progress may evolve
+through subsequent interactions. For instance, a favorable current value may still be followed by
+a missed grasp as the target moves before gripper closure. Predicting task values across multi-
+ple future horizons instead provides temporally structured supervision for learning task-directed
+representations that guide action generation, as illustrated in Fig. 1(A-b).
+To instantiate this perspective, we propose PhysVAM, a Physics-oriented Future Value Action
+2
+
+
+Model for dynamic object manipulation. PhysVAM leverages current observations and historical
+object and robot motion to model evolving interaction context, while jointly learning action gener-
+ation and multi-horizon future-value prediction. The value branch predicts task values at multiple
+future horizons and learns corresponding latent representations from both successful and failed
+trajectories. These future-value representations capture anticipated task progress associated with
+robot–object interactions and are integrated into the action policy through gated cross-attention,
+guiding action generation toward interactions that promote task success. As illustrated in Fig. 1(B),
+the predicted future values can reﬂect changes in task progress as interactions unfold.
+Our main contributions are summarized as follows:
+• We present a task-value perspective on future modeling for dynamic object manipulation,
+leveraging multi-horizon future-value prediction to learn task-directed representations for ac-
+tion guidance.
+• We propose PhysVAM, a physics-oriented framework that integrates historical object and
+robot motion understanding with multi-horizon future-value guidance for action generation.
+• Extensive simulation and real-world experiments demonstrate improved task success and exe-
+cution efﬁciency, with absolute success-rate gains of 27.0 and 27.5 percentage points over the
+strongest baselines, respectively. Integrating our value branch into other action models yields
+further improvements, demonstrating the transferability of future-value guidance.
+2
+Related Work
+Vision–Language–Action and World–Action Models.
+Vision-language-action (VLA) models
+have advanced generalist robot manipulation by learning multimodal policies that map visual ob-
+servations and language instructions to robot actions [1, 9, 11–13]. Track4Action [14] distills
+action-aligned 3D transition features into learnable queries that condition action generation. Ex-
+tending this paradigm, World Action Models (WAMs) [3, 4, 15–17] couple future scene prediction
+with action generation to enhance temporal reasoning and robotic control. Recent approaches fur-
+ther explore efﬁcient predictive modeling: Fast-WAM [3] leverages video modeling during train-
+ing without test-time future generation, while ImageWAM [16] leverages pretrained image-editing
+models to capture task-relevant visual transformations without future-video decoding. These ad-
+vances demonstrate the beneﬁts of predictive world representations for action modeling, while
+primarily focusing on scene evolution rather than explicit multi-horizon task-progress prediction.
+Value Models for Robot Learning. Process value learning [9, 10, 18, 19] enables robots to as-
+sess task progress and leverage interaction experience for policy improvement. Recent studies have
+advanced value estimation through experience-based learning and predictive world representations.
+Speciﬁcally, π∗
+0.6 [9] employs value-based advantage learning for policy reﬁnement, while ViVa [8]
+combines future robot motion prediction with current-state value estimation. WCM [10] strength-
+ens value estimation through predictive world representations, and RISE [20] evaluates imagined
+future states using a current progress value model for policy optimization. WVM [18] models
+value sequences over observed video histories using a coupled video–value architecture. Together,
+these methods demonstrate the beneﬁts of predictive representations for task-progress assessment.
+In contrast, PhysVAM focuses on directly predicting task progress at multiple future offsets and
+incorporating the corresponding query representations into action generation.
+Dynamic Object Manipulation. Dynamic Object manipulation requires robots to perceive mov-
+3
+
+
+Current Observation Encoding
+DINO
+Encoder
+Visual Tokens
+...
+Task Instruction
+“Grasp the moving object
+and place it into the basket.”
+Text
+Encoder
+Text Tokens
+...
+Proprioceptive State
+𝑆𝑡
+...
+C
+Historical Motion Encoding
+at−K
+at−2
+at−1
+...
+Multi-Horizon Value Estimation
+Multi-Horizon Value Queries
+DiT Block × Lv
+ValueDiT
+Latent Value Features
+...
+Action Generation
+Gated Cross-Attention
+DiT Block × La
+ActionDiT
+qΔ1
+qΔ2
+qΔ3
+qΔM
+( N Layers)
+Robot History
+Encoder
+Robot 
+History Tokens
+...
+Object History
+Encoder
+Object 
+History Tokens
+...
+Wrist
+Front
+Side
+Conditioning Tokens
+Conditioning Tokens
+C
+Object Motion
+Noise
+εv
+Noise
+εa
+Robot Motion
+x
+y
+z
+t−4
+t−3
+t−2
+t−1
+[pᵢ, v̂ᵢ]
+v̂t−3
+v̂t−2
+v̂t−1
+Position + Finite-difference velocity
+…
+…
+Action
+Chunk
+⋮
+𝑎𝑡:𝑡+31
+t + 4
+t + 8
+t + 16
+t + 32
+Value 
+0.0
+0.5
+1.0
+4
+8
+16
+32
+Future horizon (steps)
+Rolling Scenes
+Value Predictions
+0.49
+0.54
+0.56
+0.67
+Figure 2 Framework of proposed PhysVAM. Historical object and robot motion provide com-
+plementary temporal context, while ValueDiT learns multi-horizon, task-directed future represen-
+tations. These latent features guide ActionDiT through gated cross-attention to guide action gener-
+ation toward task success.
+ing targets, anticipate future interactions, and adapt actions to continuously evolving physical en-
+vironments. Recent studies have advanced this direction through motion-aware perception, predic-
+tive planning, and responsive control [21–24]. Among representative methods, DynamicVLA [2]
+improves control responsiveness through continuous inference and latent-aware action streaming.
+PUMA [5] exploits historical optical ﬂow and future object-state prediction to enhance motion
+awareness, while DynamicWAM [4] combines historical ﬂow and kinematic motion cues with re-
+sponsive world-action modeling. Together, these methods strengthen motion understanding, future
+anticipation, and timely action execution in dynamic environments. Moreover, PhysVAM utilizes
+historical physical motion with multi-horizon future value guidance, thus enabling action genera-
+tion to leverage both target dynamics and task-directed future information.
+3
+Method
+3.1
+Overview
+As illustrated in Fig. 2, PhysVAM addresses dynamic robot manipulation, where objects continue
+to move during robot perception and action execution. At time step t, the policy takes a language
+instruction ℓ, the current proprioceptive state st, tri-view visual observations Ot, and histories of
+object motion Ho
+t and robot actions Ha
+t to predict an action chunk:
+At = πθ,ϕ(Ot,ℓ,st,Ho
+t ,Ha
+t ),
+At = at:t+Sa−1,
+(1)
+where Sa = 32 is the action prediction horizon. PhysVAM comprises current-observation and
+historical-motion encoding modules, together with two coupled branches for action generation and
+future value learning. The action branch employs a 1B-parameter Diffusion Transformer, termed
+ActionDiT, whose backbone is initialized using adapted pretrained weights from the Wan2.2-TI2V-
+5B video DiT [25], following Fast-WAM [3]. The value branch employs a smaller Diffusion Trans-
+former, termed ValueDiT, to learn future task-progress representations. Both branches are condi-
+tioned on current visual, language, and proprioceptive features. Historical object-motion features
+4
+
+
+directly condition ActionDiT, while recent robot-action features provide ValueDiT with temporal
+information about the robot’s control behavior. The learned horizon-speciﬁc value-query features
+are integrated into ActionDiT through gated cross-attention to guide action generation toward task
+success.
+3.2
+Historical Motion Encoding
+Unlike static manipulation, where current observations are often sufﬁcient for action prediction,
+dynamic manipulation requires reasoning about object motion, which may not be reliably inferred
+from a single current observation [2, 4]. We therefore explicitly encode historical object motion
+and executed robot actions to provide compact temporal context for action generation and value
+estimation.
+Object Motion.
+In dynamic environments, task-relevant objects are often in motion, while the
+surrounding background remains largely static. Historical object motion (e.g., trajectories) can pro-
+vide compact cues about evolving object dynamics, offering useful temporal context for dynamic
+manipulation [2, 4]. Motivated by [2, 24, 26], we leverage 3D object positions from four preced-
+ing time steps: Po
+t = [pt−4,..., pt−1], where pi ∈R3 to represent historical object trajectories. To
+further characterize object motion, we estimate velocities using second-order accurate ﬁnite differ-
+ences, with central differences at intermediate time steps and one-sided differences at the temporal
+boundaries. The resulting position and velocity features are concatenated into 6D object motion
+states and encoded into object history tokens to condition ActionDiT.
+Robot Motion.
+Robot–object interactions are central to manipulation, as task progress depends
+on both object dynamics and the robot’s control behavior [5, 27]. In dynamic scenes, historical
+robot actions reﬂect the robot’s recent control decisions and responses to object motion, providing
+useful cues for estimating future interactions and task progress [28]. We represent robot motion
+history using recent robot actions, Ha
+t = {at−L,...,at−1}, where L denotes the history length. These
+historical actions are encoded into robot history tokens and provided to ValueDiT, allowing future
+value estimation to account for the robot’s recent control behavior alongside the evolving physical
+interaction.
+3.3
+Multi-Horizon Value-Guided Action Generation
+Object and robot motion histories provide complementary cues about the evolving robot–object
+interaction. To anticipate how these interactions will shape future task progress, we introduce a
+multi-horizon value branch that predicts future task values and learns horizon-speciﬁc latent repre-
+sentations to guide action generation toward task success.
+Multi-Horizon Value Estimation. To provide dense temporal supervision for future value estima-
+tion, we construct temporally structured value targets by combining episode-level outcomes with
+temporal information. For an episode e of length Te, we assign an outcome label c(e) = +1 for
+success and c(e) = −1 for failure. We place K approximately uniformly spaced temporal anchors
+along each episode:
+Hk = max
+(
+1,
+⌈kTe
+K
+⌉)
+,
+k = 1,...,K.
+(2)
+5
+
+
+Table 1 Main comparison results and transferability of proposed value guidance. “+” denotes
+augmentation with our value design. Best and second-best results are shown in bold and underlined,
+respectively.
+Methods
+Moderate-speed
+High-speed
+Average
+Avocado
+Beer
+Potato
+Apple
+Lemon
+Can
+D-Bottle W-Bottle
+Egg
+Cup
+SR (%) ↑Time (s) ↓
+FastWAM [3]
+0.00±0.00
+0.00±0.00
+0.00±0.00 11.67±8.50 0.00±0.00
+0.00±0.00
+0.00±0.00
+1.67±2.36 3.33±2.36
+0.00±0.00
+1.67±0.47 11.59±0.16
+DynamicWAM [4]
+6.67±6.24
+5.00±4.08
+0.00±0.00
+5.00±0.00
+1.67±2.36
+0.00±0.00 25.00±4.08 8.33±2.36 1.67±2.36
+0.00±0.00
+5.33±0.62 10.96±0.10
+InternVLA-A1.5 [13] 3.33±2.36
+0.00±0.00
+0.00±0.00
+3.33±2.36
+0.00±0.00
+0.00±0.00 18.33±2.36 0.00±0.00 15.00±0.00 0.00±0.00
+4.00±0.82 10.82±0.03
+DynamicVLA [2]
+23.33±2.36 10.00±7.07 5.00±4.08
+8.33±2.36 16.67±2.36 1.67±2.36 83.33±10.27 10.00±7.07 6.67±6.24
+8.33±8.50 17.33±0.24 8.92±0.09
+PUMA [5]
+10.00±0.00 65.00±8.16 41.67±10.27 11.67±8.50 85.00±7.07 1.67±2.36 58.33±2.36 10.00±7.07 0.00±0.00 35.00±4.08 31.83±1.70 9.56±0.15
+DynamicVLA+ [2]
+33.33±6.24 21.67±2.36 8.33±6.24 16.67±2.36 43.33±2.36 0.00±0.00 81.67±6.24 28.33±9.43 13.33±4.71 5.00±0.00 25.17±0.85 9.30±0.14
+PUMA+ [5]
+13.33±4.71 85.00±12.25 51.67±2.36 26.67±6.24 70.00±10.80 0.00±0.00 88.33±2.36 43.33±2.36 5.00±4.08 31.67±31.71 41.50±2.86 8.83±0.12
+PhysVAM (Ours)
+60.00±10.80 41.67±10.27 65.00±7.07 45.00±4.08 88.33±6.24 36.67±10.27 86.67±8.50 93.33±4.71 28.33±8.50 43.33±4.71 58.83±1.65 8.23±0.13
+The value target at time step t ∈{0,...,Te −1} is deﬁned as:
+Vt = c(e)
+K
+K
+∑
+k=1
+exp
+(
+−[Hk −1−t]+
+τ
+)
+,
+(3)
+where Hk denotes the k-th temporal anchor, [x]+ = max(x,0), τ > 0 controls the temporal decay,
+and K = 4. The episode outcome determines the sign of Vt, while the temporal anchors shape its
+magnitude over the episode through the exponential terms. The resulting targets lie in [−1,1] and
+satisfy VTe−1 = c(e), providing temporally structured supervision that combines task outcomes with
+temporal progression.
+To explicitly supervise future value estimation across the action chunk, we construct targets at
+multiple future horizons H = {4,8,16,32}:
+VH
+t
+=
+[
+Vmin(t+h,Te−1)
+]
+h∈H ,
+(4)
+where horizons extending beyond episode termination retain the terminal value. These geometri-
+cally spaced horizons provide denser supervision at shorter offsets while covering the full action-
+chunk length of Sa = 32 steps. Predicting values at distinct future offsets encourages the model to
+learn horizon-speciﬁc representations of anticipated task progress at multiple temporal scales.
+Multi-Horizon Value Queries. Conditioned on current observations and robot motion history, Val-
+ueDiT employs horizon-speciﬁc learnable queries {qh}h∈H to capture future task progress. The
+resulting query representations serve both as horizon-speciﬁc features for scalar value prediction
+and as latent conditioning signals for value-guided action generation. The predictions are super-
+vised by:
+Lreg =
+1
+|H | ∑
+h∈H
+(
+ˆV (h)
+t
+−Vmin(t+h,Te−1)
+)2
+,
+(5)
+where ˆV (h)
+t
+denotes the prediction made at time t for the future offset h. In parallel, ValueDiT learns
+a ﬂow ﬁeld that transforms noisy value variables toward multi-horizon value targets. The overall
+value learning objective combines this loss with horizon-speciﬁc query regression:
+Lvalue = L V
+FM +Lreg.
+(6)
+6
+
+
+At inference, future values are predicted from observed interaction context without access to
+episode-level labels.
+Value-Guided Action Generation.
+To leverage anticipated task progress for action generation,
+we use the latent query features as conditioning information for ActionDiT. Inspired by selective
+intermediate-layer future conditioning [29], We project horizon-speciﬁc features from selected
+ValueDiT layers into designated ActionDiT layers and integrate them through gated cross-attention:
+XA
+j ←XA
+j +G j ⊙CrossAttnj
+(
+XA
+j ,MV
+j
+)
+,
+(7)
+where XA
+j denotes the ActionDiT hidden states at the j-th injection layer, MV
+j contains the pro-
+jected hidden features of the horizon-speciﬁc value queries, and G j is a learned, content-adaptive
+gate applied element-wise. Each injection layer uses its own gating module. This allows Action-
+DiT to access representations of anticipated progress at multiple future horizons throughout action
+generation.
+Training Objectives. We jointly train ActionDiT and ValueDiT with:
+L = Laction +λVLvalue,
+(8)
+where Laction is the action ﬂow-matching loss and λV is set to balance action generation and value
+learning. Successful trajectories supervise both objectives, whereas failed trajectories contribute
+only to the value objective.
+4
+Experiments
+4.1
+Experimental Setup
+Simulation Benchmark. Building upon the closed-loop reactivity setting of DOM [2], we recon-
+struct dynamic manipulation scenarios with ten geometrically diverse objects, spanning spherical,
+ellipsoidal, irregular, cylindrical, bottle-shaped, and cup-shaped forms. To emphasize high-speed
+interactions, we redesign the object velocity distribution: Can, D-Bottle, W-Bottle, Egg, and Cup
+scenes are evaluated at v ≥0.4m/s, while the remaining scenes are evaluated at 0.2 ≤v < 0.4m/s.
+The resulting dataset comprises 12K successful trajectories and 10K failed trajectories, with the
+latter collected from rollouts of PUMA [5], DynamicVLA [2], and FastWAM [3]. Each scene con-
+tains at least 1K success and 1K failure trajectories. Following [2], we report task success rate and
+task completion time. Task completion time is averaged over all trials and include termination by
+success, timeout, or object drop.
+Implementation Details. The ActionDiT comprises 30 transformer layers with a hidden dimension
+of 1,024, while ValueDiT contains 12 layers with a hidden dimension of 512. Value-query features
+from ValueDiT layers 4, 8, and 12 are projected and injected into ActionDiT layers 9, 19, and 27,
+respectively. Both models are jointly trained for 24K steps using AdamW with a learning rate of
+10−4 and a global batch size of 128. The weight λV is set to 0.1 and history length L is set as
+four. We set 10 and 4 denoising steps for ActionDiT and ValueDiT, respectively. More Details are
+provided in the Supplementary Material.
+Compared Methods.
+In simulation, PhysVAM is compared with FastWAM [3], InternVLA-
+A1.5 [13], DynamicWAM [4], DynamicVLA [2], and PUMA [5]. Following [2], each method
+is evaluated over 20 trials for each scene. All methods are ﬁne-tuned using their ofﬁcial codes and
+7
+
+
+released pretrained weights. Results are reported as mean ± standard deviation over three random
+seeds.
+4.2
+Main Results
+As shown in Table 1, PhysVAM achieves an average success rate of 58.83%, outperforming the
+strongest original baseline, PUMA, by 27.00 percentage points. It achieves the highest success
+rate in eight of ten scenes and the shortest average completion time of 8.23 seconds under the
+DOM evaluation protocol. FastWAM and InternVLA-A1.5 achieve average success rates below
+6%, while DynamicWAM remains limited despite incorporating historical optical ﬂow and kine-
+matic cues, highlighting the difﬁculty of translating motion awareness into successful interactions.
+In high-speed scenes, DynamicVLA performs well on D-Bottle but remains inconsistent across
+other scenes, while DynamicVLA and PUMA achieve only 22.00% and 21.00% success rates,
+respectively. In contrast, PhysVAM reaches 57.67%, demonstrating the beneﬁt of combining his-
+torical motion context with future-value guidance for dynamic action generation.
+Table 2 Ablations of value-guided action generation. We examine the value branch, condition-
+ing representations, horizon-speciﬁc query targets, and future progress prediction.
+Model Variant
+SR (%) ↑Time (s) ↓
+(a) Value branch
+Without Value Branch
+50.50±1.08
+9.65±0.02
+(b) Value representations
+Scalar Conditioning
+40.83±1.43
+9.02±0.16
+Binary Conditioning
+48.50±2.55
+8.85±0.08
+(c) Multi-horizon value prediction
+Single-Value (Single Query)
+37.83±3.30
+9.30±0.10
+Single-Value (Multiple Queries)
+50.50±0.71
+8.40±0.13
+(d) Future progress prediction
+Current-Value Prediction
+46.50±2.27
+9.02±0.16
+PhysVAM (Full)
+58.83±1.65
+8.23±0.13
+Table 3 Ablations of object and robot motion histories. All historical inputs span four frames.
+Model Variant
+SR (%) ↑Time (s) ↓
+(a) Object motion representation
+Without Object Motion History
+17.17±2.39
+9.65±0.02
+RGB History
+22.33±1.55
+9.27±0.26
+Object Position History
+30.67±2.01
+9.53±0.03
+Object Velocity History (Oracle)
+34.00±3.27
+9.00±0.10
+Object Velocity History (Estimated)
+33.67±0.85
+8.93±0.04
+(b) Robot motion history
+Without Robot Motion History
+45.17±2.05
+8.87±0.04
+PhysVAM (Full)
+58.83±1.65
+8.23±0.13
+8
+
+
+Figure 3 Effect of Object and Robot Motion History Length.
+The beneﬁts of future-value guidance also extend to other action models. Integrating our value
+design improves the average success rates of DynamicVLA and PUMA from 17.33% to 25.17%
+and from 31.83% to 41.50%, respectively, demonstrating its effectiveness across different action
+policies.
+4.3
+Ablation Studies
+Effect of the Value Branch. We evaluate the contribution of future-value guidance to action gen-
+eration. As shown in Table 2, removing the value branch reduces the success rate from 58.83% to
+50.50%, demonstrating the effectiveness of future-value guidance for dynamic manipulation.
+Effect of Value Representations. We replace the latent value representations injected into the
+action policy with embeddings of either four predicted scalar values or binary good/bad indicators
+obtained by mapping these predictions to {0,1}, following [9]. As shown in Table 2, both scalar and
+binary conditioning underperform latent conditioning, suggesting that latent value representations
+capture richer task-relevant information than explicit value scores and provide more effective action
+guidance.
+Effect of Multi-Horizon Value Prediction. We vary the number of value queries and their super-
+vision targets while keeping the future-value ﬂow-matching objective unchanged. Under a shared
+overall future-value target (averaged by four targets), increasing the number of queries from one to
+four improves the success rate from 37.83% to 50.50%. Assigning distinct horizon-speciﬁc targets
+to the four queries further improves performance to 58.83%. These results indicate that multiple
+queries beneﬁt value learning even under shared supervision, while horizon-speciﬁc targets provide
+additional gains by capturing task progress across different future horizons.
+Effect of Future Progress Prediction. We replace the future-offset query targets with current-
+value targets (h = 0), keeping the progress deﬁnition, query count, and injection scheme unchanged.
+This reduces the success rate from 58.83% to 46.50%, a 12.33-percentage-point drop. Current-
+value supervision focuses on present progress, whereas future-offset targets encourage horizon-
+speciﬁc representations of how upcoming interactions may advance or hinder the task. These results
+support our value-based future modeling formulation, highlighting the beneﬁt of anticipating task
+progression for dynamic action generation.
+9
+
+
+(a) Robot platform
+Robot arm
+Wrist camera
+Gripper
+Target
+Object
+Task platform (e.g., Turntable)
+Target Location
+Three camera views
+Main camera
+Wrist camera
+(b) Conveyor Belt Scenes
+0.52 s
+2.40 s
+4.24 s
+6.00 s
+10.32 s
+(c) Turntable Scenes
+0.40 s
+1.04 s
+2.20 s
+4.40 s
+8.00 s
+(d) Rolling Scenes
+0.44 s
+0.80 s
+1.24 s
+2.80 s
+4.16 s
+Side camera
+Figure 4 Real-world experimental setup. Our platform uses a single AgileX PiPER arm and
+includes multiple targets that undergo linear, circular, and compound rolling dynamic manipulation
+tasks.
+Interaction-Sensitive Future-Value Predictions. Beyond task performance, we examine whether
+future-value predictions reﬂect interaction-dependent changes in task progress. We focus on the
+shortest prediction horizon (h = 4) and evaluate value changes over a ±16-step window centered
+on gripper closure. Across 220 grasp attempts from 200 simulation episodes, predicted values in-
+crease by 0.254 for successful lifts and decrease by 0.185 for missed grasps on average, yielding
+a Lift–Miss difference of 0.439. Predicted values increase in 96/119 lift attempts and decrease
+in 77/101 missed attempts, consistent with the progress gains and setbacks associated with these
+interactions. Notably, across 33 episodes containing both interaction outcomes, the mean within-
+episode Lift–Miss difference remains positive (+0.319), further supporting sensitivity to local in-
+teractions beyond episode-level outcome labels. These results provide quantitative evidence that
+future-value predictions respond to evolving robot–object interactions. Further analyses and more
+visualizations are provided in the Supplementary Material.
+Effect of Object Motion History. We compare different object-motion representations in Ta-
+ble 3(a), while keeping the robot-action history ﬁxed. Without object-motion history, the success
+rate drops to 17.17%, highlighting the importance of object dynamics for manipulation. Incorporat-
+ing historical RGB observations or object positions improves performance to 22.33% and 30.67%,
+respectively, indicating the advantage of explicit spatial trajectories over implicit visual histories.
+Moreover, position-derived velocity achieves a success rate of 33.67%, comparable to 34.00% with
+oracle velocity, suggesting that effective motion cues can be obtained without privileged velocity
+information. Combining object positions and estimated velocities further increases performance
+to 58.83%, substantially outperforming either representation alone. This improvement highlights
+the complementary roles of spatial position and motion velocity in anticipating target displacement
+and coordinating dynamic grasps.
+Effect of Robot Motion History. As shown in Table 3(b), removing only historical robot actions
+reduces the success rate from 58.83% to 45.17%, indicating that object-motion information alone
+is insufﬁcient for effective dynamic manipulation. Historical robot actions provide complementary
+10
+
+
+temporal context for coordinating robot movements with evolving object dynamics.
+Effect of History Length. As shown in Fig. 3, we vary object and robot motion history lengths
+independently, ﬁxing the other at four frames. Increasing either history from two to four frames
+improves success from 39.83% to 58.83% and from 43.67% to 58.83%, respectively, highlighting
+the importance of temporal context for object dynamics and robot coordination. Extending either to
+six frames reduces success to 49.67% and 46.00%, respectively, suggesting redundant information.
+Finlay, we set the length of history frames as four. Further hyperparameter analyses, temporal
+action reweighting, and per-object results are provided in the Supplementary Material.
+4.4
+Real-World Experiments
+Experimental Setup.
+As illustrated in Fig. 4, we evaluate PhysVAM on a single AgileX PiPER
+robotic arm across three dynamic manipulation scenarios involving distinct motion patterns:
+conveyor-belt translation (0.07–0.17 m/s), turntable rotation (25.33◦/s), and object rolling (0.20–
+0.30 m/s). Our real-world dataset comprises 60 conveyor-belt, 60 turntable, and 30 rolling trajec-
+tories involving objects with diverse geometries, including oranges, cuboid blocks, bread, cups,
+and bottles. We compare PhysVAM with DynamicVLA [2] and PUMA [5]. All three methods
+are ﬁne-tuned on the real-world dataset, with the baselines initialized from simulation-ﬁne-tuned
+checkpoints.
+RGB
+Depth
+Initial mask
+Mesh
+FoundationPose
+First-frame Initialization
+Object Position
+History
+Object Motion (p, v)
+PhysVAM
+Generate Pose Candidates
+Refine Poses
+Select Best Pose
+Frame-to-frame Tracking
+Previous Pose
+Update
+Velocity estimation
+Figure 5 Object motion estimation for real-world tasks. We employ FoundationPose to esti-
+mate and track object poses from RGB-D observations using an initial mask and an object mesh.
+Four-frame position histories and their derived velocities jointly form the object motion inputs to
+PhysVAM.
+Object Motion Estimation. As illustrated in Fig. 5, we estimate object motion from the main-
+view RGB-D stream using FoundationPose [30], with color-based foreground segmentation and
+an object mesh generated by OnePoseviaGen [31]. In the ﬁrst frame, FoundationPose generates
+and reﬁnes pose candidates to select an initial 3D object pose. It then tracks the object by reﬁning
+the previous pose against subsequent RGB-D observations. We extract object positions from the
+estimated poses and compute historical velocities using the same formulation as in simulation.
+Results. Fig. 6 presents real-world success rates and representative executions across three dy-
+namic manipulation scenarios. Macro-averaged across three scenarios, PhysVAM achieves a suc-
+11
+
+
+(a) Success rate (%)
+(b) Demonstrations
+DynamicVLA
+PUMA
+PhysVAM
+Conveyor belt scenes
+0
+50
+40.0
+47.5
+72.5
+Turntable scenes
+0
+50
+22.5
+32.5
+65.0
+Rolling scenes
+0
+50
+25.0
+30.0
+55.0
+Overall average
+0
+50
+29.17
+36.67
+64.17
+Conveyor belt Scenes: linear translation
+Turntable Scenes : circular motion
+Rolling Scenes: translation and rotation
+#1 Put the moving
+orange in the basket.
+#2 Transfer the moving
+cube into the basket.
+#3 Place the moving
+tomato in the basket.
+#4 Move the moving 
+bread onto the plate.
+#5 Move the moving cup
+into the open-top box.
+#6 Place the moving
+cube in the basket.
+initial
+grasp
+put up
+#7 Pick up the rolling white bottle and set it in the basket.
+Figure 6 Real-world experimental results for DynamicVLA, PUMA, and PhysVAM under
+multiple scenes.
+cess rate of 64.17%, outperforming PUMA by 27.50 percentage points. Speciﬁcally, PhysVAM
+achieves 72.5%, 65.0%, and 55.0% on conveyor belt, turntable, and rolling tasks, exceeding the
+best compared method by 25.0, 32.5, and 25.0 percentage points, respectively. As illustrated in
+Fig. 6 (b), these scenarios present distinct motion challenges: linear translation requires anticipat-
+ing target displacement and grasp timing, circular motion involves continuously changing motion
+directions, and rolling couples translation with object rotation, further challenging grasp alignment.
+The consistent improvements across diverse objects and motion patterns demonstrate the effec-
+tiveness of combining historical motion context with future-value guidance for dynamic action
+generation. Test Trials are 20 for each object in each scene. Detailed results are provided in the
+Supplementary Material.
+5
+Conclusion and Future Work
+In this paper, we propose PhysVAM, a Physics-oriented Future Value Action Model that instan-
+tiates value-based future modeling for dynamic manipulation. By integrating historical physical
+motion modeling with multi-horizon future-value prediction, PhysVAM learns task-directed latent
+representations to guide action generation toward task success. This formulation characterizes an-
+ticipated robot–object interactions through their effects on task progress, providing task-directed
+foresight without reconstructing future visual states. Extensive simulation and real-world exper-
+iments demonstrate the effectiveness of PhysVAM in improving task success and execution efﬁ-
+ciency, while gains across other action models further support the transferability of future-value
+guidance.
+12
+
+
+Looking ahead, there are three promising directions for future work: 1) Toward Value-Guided Self-
+Improvement. Our framework relies on ofﬂine trajectory supervision. Future work could leverage
+future value predictions to identify interaction setbacks, guide recovery and exploration, and pro-
+vide progress-aware feedback for online reinforcement learning. This could enable iterative policy
+improvement through continuous interaction. 2) More Complex Dynamic Manipulation. Future
+work could explore more object motions, multi-object interactions, and longer-horizon tasks requir-
+ing sustained manipulation. 3) Value-Guided World-Action Models. PhysVAM predicts future task
+values without explicitly modeling future scene dynamics. Integrating multi-horizon value guid-
+ance with predictive WAMs could combine scene-dynamics prediction with task-directed action
+generation, while maintaining efﬁcient inference for real-time manipulation.
+13
+
+
+References
+[1] Anthony Brohan, Noah Brown, Justice Carbajal, Yevgen Chebotar, Xi Chen, Krzysztof
+Choromanski, Tianli Ding, Danny Driess, Avinava Dubey, Chelsea Finn, et al.
+Rt-2:
+Vision-language-action models transfer web knowledge to robotic control. arXiv preprint
+arXiv:2307.15818, 2023.
+[2] Haozhe Xie, Beichen Wen, Jiarui Zheng, Zhaoxi Chen, Fangzhou Hong, Haiwen Diao, and
+Ziwei Liu. Dynamicvla: A vision-language-action model for dynamic object manipulation.
+arXiv preprint arXiv:2601.22153, 2026.
+[3] Tianyuan Yuan, Zibin Dong, Yicheng Liu, and Hang Zhao.
+Fast-wam: Do world action
+models need test-time future imagination? arXiv preprint arXiv:2603.16666, 2026.
+[4] Yunfan Lou, Hewen Gao, Xiyu Zhu, Zhuoran Qiao, Xuan Han, Yifan Yang, Yifan Ye, Boxian
+Yao, and Zhibo Pang. Dynamicwam: Dual-path motion conditioning for world-action models
+in dynamic manipulation. arXiv preprint arXiv:2608.00793, 2026.
+[5] Heng Fang, Shangru Li, Shuhan Wang, Xuanyang Xi, Dingkang Liang, and Xiang Bai. To-
+wards generalizable robotic manipulation in dynamic environments. In European Conference
+on Computer Vision, pages 314–333. Springer, 2026.
+[6] Jingwen Sun, Wenyao Zhang, Zekun Qi, Shaojie Ren, Zezhi Liu, Hanxin Zhu, Guangzhong
+Sun, Xin Jin, and Zhibo Chen. Vla-jepa: Enhancing vision-language-action model with latent
+world model. In European Conference on Computer Vision, pages 478–497. Springer, 2026.
+[7] Feng Jiang, Yang Chen, Kyle Xu, Yuchen Liu, Haifeng Wang, Zhenhao Shen, Jasper Lu,
+Shengze Huang, Yuanfei Wang, Chen Xie, et al. Robowm-bench: A benchmark for evaluating
+world models in robotic manipulation. arXiv preprint arXiv:2604.19092, 2026.
+[8] Jindi Lv, Hao Li, Jie Li, Fankun Kong, Yang Wang, Pengfei Yi, Yifei Nie, Xiaofeng Wang,
+Zheng Zhu, Chaojun Ni, et al. Viva: A video-generative value model for robot reinforcement
+learning. arXiv preprint arXiv:2604.08168, 2026.
+[9] Physical Intelligence, Ali Amin, Raichelle Aniceto, Ashwin Balakrishna, Kevin Black, Ken
+Conley, Grace Connors, James Darpinian, Karan Dhabalia, Jared DiCarlo, et al. π∗
+0.6: A VLA
+That Learns From Experience. arXiv preprint arXiv:2511.14759, 2025.
+[10] Senyu Fei, Xiaopeng Yu, Siyin Wang, Xianzhong Zhao, Jingjing Gong, and Xipeng Qiu.
+Wcm: A world critic model for vision-language-action reinforcement learning. arXiv preprint
+arXiv:2607.29613, 2026.
+[11] Moo Jin Kim, Karl Pertsch, Siddharth Karamcheti, Ted Xiao, Ashwin Balakrishna, Suraj Nair,
+Rafael Rafailov, Ethan Foster, Grace Lam, Pannag Sanketi, et al. Openvla: An open-source
+vision-language-action model. arXiv preprint arXiv:2406.09246, 2024.
+[12] Yu Liu, Hetian Guo, Tianlv Huang, Ziyi Cai, Wudi Chen, Hantang Wang, Qiutong Liu,
+Yingzhi Peng, Wei Han, Peijun Tang, Jianan Wang, Zipei Fan, Zhiyuan Zha, and Xuan Song.
+Plaw-vla: Predictive latent world modeling for vision-language-action policies, 2026.
+[13] Haoxiang Ma, Junhao Cai, Xiaoxu Xu, Hao Li, Yuyin Yang, Yang Tian, Jiafei Cao, Hongrui
+Zhu, Zherui Qiu, Yuqiang Yang, et al. Internvla-a1. 5: Unifying understanding, latent fore-
+sight, and action for compositional generalization. arXiv preprint arXiv:2607.04988, 2026.
+14
+
+
+[14] Chenyi Wang, Xinkai Wang, Bokai Lin, Jialin Tian, Fucheng Zhang, Cewu Lu, and Lixin
+Yang. Track4action: Distilling world-centric 3d tracker into vision-language-action policies,
+2026.
+[15] Hanyang Yu, Haitao Lin, Jingbo Zhang, Wenyao Zhang, Chenghao Gu, Heng Li, and Ping
+Tan. MaskWAM: Unifying mask prompting and prediction for world-action models. arXiv
+preprint arXiv:2606.13515, 2026.
+[16] Yuyang Zhang, Wenyao Zhang, Zekun Qi, He Zhang, Haitao Lin, Jingbo Zhang, Yao Mu,
+Xiaokang Yang, Wenjun Zeng, and Xin Jin. Imagewam: Do world action models really need
+video generation, or just image editing?, 2026.
+[17] Yuran Wang, Siqiao Huang, Mingleyang Li, Chenhao Zhang, Jiaqi Liang, Weiyang Jin, Yue
+Chen, Xuemin Chi, Donghao Zhou, Qize Yu, Yu-Kai Wang, Yuhan Rui, Shenzhe Yao, Zhen
+Yuan, Zhenhao Shen, Kefei Zhu, Zijie Zhu, Ning Gao, Xiaowei Chi, Guanqi He, Shanghang
+Zhang, Hao Dong, Lin Shao, and Hang Zhao. Openwam: An open, modular exploration
+towards systematic world-action model pretraining, 2026.
+[18] Zhihao Wang, Jianxiong Li, Yu Cui, Yuan Gao, Xianyuan Zhan, Junzhi Yu, and Xiao Ma.
+World value models for robotic manipulation. arXiv preprint arXiv:2606.24742, 2026.
+[19] Hanzhi Chen, Anran Zhang, Simon Schaefer, Kejia Chen, Shi Chen, Daniel Cremers, Oier
+Mees, and Stefan Leutenegger. Robot self-improvement via human-video dynamics models.
+arXiv preprint arXiv:2606.21406, 2026.
+[20] Jiazhi Yang, Kunyang Lin, Jinwei Li, Wencong Zhang, Tianwei Lin, Longyan Wu, Zhizhong
+Su, Hao Zhao, Ya-Qin Zhang, Li Chen, et al. Rise: Self-improving robot policy with compo-
+sitional world model. arXiv preprint arXiv:2602.11075, 2026.
+[21] Zhinan Yu, Junyan Xu, Jiazhao Zhang, Zheng Qin, Yijie Tang, Yuhang Huang, Yihan Cao,
+Zhiyuan Yu, Yongjun Wang, Renjiao Yi, et al. Dynamoma: Instantaneous prediction of grasp
+poses for mobile manipulation of dynamic objects. arXiv preprint arXiv:2606.25295, 2026.
+[22] Wenhao Li, Xiu Su, Yu Han, Yichao Cao, Shan You, and Chang Xu. Dsdyn-vla: A dual-stream
+dynamic manipulation framework with motion perception, future awareness, and realtime
+correction. arXiv preprint arXiv:2609.39198, 2026.
+[23] Sunwoo Park, Wonbin Lee, Seonghyun Jin, Youngmin Kim, Jangho Park, and Jong Chul Ye.
+Dynamic manipulation with world-action models via counterfactual planning. arXiv preprint
+arXiv:2609.33172, 2026.
+[24] Peng Yun, Shouwang Huang, Hao Li, Jinxi Li, Jianan Wang, and Bo Yang. Physmani: Physics-
+principled 3d world model for dynamic object manipulation. In European Conference on
+Computer Vision, pages 20–39. Springer, 2026.
+[25] Team Wan, Ang Wang, Baole Ai, Bin Wen, Chaojie Mao, Chen-Wei Xie, Di Chen, Feiwu Yu,
+Haiming Zhao, Jianxiao Yang, et al. Wan: Open and advanced large-scale video generative
+models. arXiv preprint arXiv:2503.20314, 2025.
+[26] Yirui Zhou, Hongli Xu, Ying Zheng, Yi Wang, and Lap-Pui Chau. Physics-aware object-
+centric se(3) forecasting for real-time proactive dynamic grasping, 2026.
+[27] Bokai Lin, Yifu Xu, Xinyu Zhan, Hongjie Fang, Jialin Tian, Fu-Cheng Zhang, Yong-Lu Li,
+15
+
+
+Cewu Lu, and Lixin Yang. Chronoﬂow-policy: Unifying past-current-future interaction ﬂow
+in visuomotor policy learning, 2026.
+[28] Kuancheng Wang, Seungho Yeom, Jinglin Cao, Yuheng Zhi, Nikhil Shinde, and Michael
+Yip. Remember what you did?: Learning behavioral memories for partially observable object
+manipulation. arXiv preprint arXiv:2606.21188, 2026.
+[29] Weiheng Zhao, Haoyi Jiang, Xin Shi, Liu Liu, Fan Huang, Zhizhong Su, Wei Sui, and Xing-
+gang Wang. Faster-wam: Efﬁcient inference-time future conditioning for robust world action
+models. arXiv preprint arXiv:2608.04404, 2026.
+[30] Bowen Wen, Wei Yang, Jan Kautz, and Stan Birchﬁeld. Foundationpose: Uniﬁed 6d pose
+estimation and tracking of novel objects. In 2024 IEEE/CVF Conference on Computer Vision
+and Pattern Recognition (CVPR), pages 17868–17879. IEEE, 2024.
+[31] Zheng Geng, Nan Wang, Shaocong Xu, Chongjie Ye, Bohan Li, Zhaoxi Chen, Sida Peng,
+and Hao Zhao. One view, many worlds: Single-image to 3d object meets generative domain
+randomization for one-shot 6d pose estimation. arXiv preprint arXiv:2509.07978, 2025.
+[32] Sixu Lin, Junliang Chen, Huaiyuan Xu, Zhuohao Li, Guangming Wang, Yixiong Jing, Sheng
+Xu, Runyi Zhao, Brian Sheil, Lap-Pui Chau, et al. Roboﬂow4d: A lightweight ﬂow world
+model toward real-time ﬂow-guided robotic manipulation. arXiv preprint arXiv:2605.17522,
+2026.
+16
+
+
+Appendix
+A
+Method
+A.1
+Training Algorithm
+Algorithm 1 summarizes the joint training of ValueDiT and ActionDiT, where value representations
+guide action generation through gated cross-attention.
+Algorithm 1 Training Pipeline of the Proposed PhysVAM
+Input: Training episodes D with outcome labels c(e) and precomputed targets VH
+t
+; future horizons H = {4,8,16,32};
+value loss weight λV .
+Output: Trained policy πθ and value model ϕ
+1: for each sampled episode–timestep pair (e,t) do
+2:
+1. Multi-Horizon Future Value Learning
+3:
+( ˆVH
+t
+,MVt ) ←ValueDiT(Ot,Hat ,{qh}h∈H )
+4:
+Lvalue ←L V
+FM +Lreg
+5:
+2. Value-Guided Action Generation
+6:
+Laction ←0
+7:
+if c(e) = +1 then
+8:
+Ct = (ℓ,st,Ot,Hot ,Hat )
+9:
+ˆAt ←ActionDiT(Ct,MVt )
+10:
+Laction ←ActionLoss( ˆAt,At)
+11:
+else
+12:
+Skip action loss for failed trajectories.
+13:
+end if
+14:
+L ←Laction +λV Lvalue
+15:
+Update (θ,ϕ) using ∇θ,ϕL
+16: end for
+17: return πθ,ϕ
+A.2
+Implementation Details
+The value loss weight λV is set to 0.1 and linearly warmed up over the ﬁrst 2K steps. Action DiT and
+ValueDiT are jointly trained for 24K steps using AdamW with a learning rate of 10−4 and a global
+batch size of 128 on four NVIDIA RTX 5090 GPUs. Training requires approximately 48 GPU-
+hours. During inference, PhysVAM employs asynchronous action-chunk generation, achieving a
+latency of 0.322 seconds per chunk on a single NVIDIA RTX 5090 GPU. For τ in Eq. (3), we set
+τ = 16, corresponding to half the action-chunk length, to provide gradual temporal variation in the
+value targets while retaining sensitivity to the distance from each temporal anchor.
+Inspired by prior work [29, 32], we condition ActionDiT on horizon-speciﬁc value representations.
+We extract the hidden states of the value queries from ValueDiT blocks 4, 8, and 12, project them,
+and inject them into ActionDiT layers 9, 19, and 27, respectively. At each injection layer, the action
+hidden states attend to the corresponding value features through a gated residual update (Eq. (7)).
+A layer-speciﬁc gating network takes the action hidden states, pooled value features, and denoising
+timestep features as inputs and produces token- and channel-wise gates. The same network predicts
+the scale and shift applied to the normalized attention queries.
+17
+
+
+Table 4 Closure-aligned future-value changes in simulation. Mean ± standard deviation across
+220 valid grasp attempts from 200 evaluation trajectories, including retries.
+Window
+Lift
+(n = 119)
+Miss
+(n = 101)
+Gap
+±8
++0.103±0.279
+−0.150±0.240
++0.253
+±16
++0.254±0.370
+−0.185±0.237
++0.439
+Figure 7 Closure-aligned future-value predictions for Lift and Miss attempts in simulation.
+Representative attempts are collected in the same environment using the same policy, with similar
+object–gripper positions at closure. RGB observations and 4-step-ahead task-value predictions
+illustrate the progress gains and setbacks associated with the two interaction outcomes. The vertical
+reference line marks gripper closure.
+B
+Additional Experiments Results
+B.1
+Interaction-Sensitive Future Value Predictions
+Quantitative Analysis. We examine whether future-value predictions respond to local interaction
+outcomes by aligning grasp attempts to gripper closure. We adopt the shortest prediction horizon
+(h = 4) to capture near-term interaction responses and evaluate value changes over ±8 (±0.32 s)
+and ±16 (±0.64 s) control steps across 220 valid grasp attempts from 200 simulation trajectories.
+For a closure event at tc, we calculate:
+∆ˆV (4)
+δ
+= ˆV (4)
+t+
+δ
+−ˆV (4)
+t−
+δ ,
+(9)
+where t−
+δ and t+
+δ denote the nearest valid prediction times to tc −δ and tc +δ, respectively. These
+temporal windows are distinct from the prediction horizon h.
+As shown in Table 4, future-value predictions reﬂect local gains and setbacks in task progress. For
+the h = 4 predictions within the ±16-step window, successful lifts yield a mean value increase of
+0.254, whereas missed grasps exhibit a decrease of 0.185, giving a Lift–Miss gap of 0.439. Pre-
+dicted values increase in 80.7% of Lift attempts and decrease in 76.2% of Miss attempts. Across 33
+episodes containing both interaction types, the mean within-episode Lift–Miss difference remains
+18
+
+
+positive at +0.319.
+Closure-Aligned Simulation Visualization.
+Fig. 7 compares representative Lift and Miss at-
+tempts with visually similar object–gripper conﬁgurations at closure. As the interactions unfold,
+the predicted value increases by 0.441 for the successful lift and decreases by 0.184 for the missed
+grasp. These examples illustrate the distinction between an interaction’s instantaneous conﬁgura-
+tion and its subsequent task consequences, which are reﬂected in the evolving value predictions.
+Additional Simulation Interactions.
+Fig. 8 presents representative interaction events from dif-
+ferent trajectories, including missed grasps, re-approaching after setbacks, and successful grasping
+and lifting. Predicted values decrease around missed grasps and increase during re-approaching
+and successful lifting. These examples illustrate how future-value predictions respond to distinct
+gains and setbacks in robot–object interactions.
+Real-World Interaction Analysis.
+We further examine future-value predictions in real-world
+turntable manipulation, where object motion continues during execution. As illustrated in Fig. 9,
+the predicted value increases by 0.064 during successful lifting and decreases by 0.227 when the
+cup tips over. These examples provide qualitative evidence of interaction-sensitive value changes
+during real physical execution.
+The response to cup tipping further illustrates how the same
+progress-based interpretation can describe a different failure mode.
+Beyond Temporally Shaped Value Targets. To examine whether local value responses merely
+follow the prescribed temporal supervision, we compare predicted and target value changes around
+grasp attempts. Among 28 missed grasps from 25 ultimately successful simulation episodes, pre-
+dicted values decrease in 19 attempts (67.9%) over a ±16-step window, whereas the corresponding
+targets increase in all 28 attempts. For 33 episodes containing both successful lifts and missed
+grasps, the within-episode Lift–Miss difference is +0.319 for predictions but only +0.043 for tar-
+gets, yielding a paired difference of +0.277 (95% bootstrap CI: [+0.125,+0.431]). These results
+indicate that learned future-value predictions exhibit local variations not explicitly encoded by the
+temporal supervision targets.
+Overall, these analyses support our value-based future modeling formulation: predicted future
+task values describe the gains, setbacks, and recovery associated with evolving robot–object in-
+teractions. The value targets combine temporal progression with ﬁnal episode outcomes, without
+explicit supervision for individual interaction events. Together with the main-paper ablation com-
+paring current-value and multi-horizon future-value prediction, these ﬁndings further support the
+beneﬁts of future-value learning for dynamic action generation.
+B.2
+Value-Guided Action Reweighting
+To investigate whether ValueDiT can provide reward-like signals for action learning, we use the
+best-performing checkpoint as a frozen teacher to evaluate task progress in ofﬂine datasets. Speciﬁ-
+cally, we predict multi-horizon values at 8-frame intervals and derive segment-level progress scores
+from consecutive V4 predictions. We use an 8-frame interval for ofﬂine progress scoring to capture
+changes over longer action segments. Since higher values indicate greater task progress, we deﬁne:
+∆Vi = V4(sti+8)−V4(sti).
+(10)
+19
+
+
+Figure 8 Interaction-sensitive future-value predictions in simulation. RGB observations and
+4-step-ahead task-value predictions illustrate (a) a missed grasp, (b) re-approach after a setback,
+and (c) successful grasping and lifting. Each row shows a different trajectory. Dashed lines mark
+the corresponding interaction events, and yellow circles highlight the target objects.
+We convert positive progress scores into normalized action weights:
+pi = max(∆Vi,0),wi = clip
+(
+1+
+pi
+mean j:pj>0(p j),1,4
+)
+.
+(11)
+Each weight is applied to its corresponding 32-step action chunk, yielding the weighted action
+objective:
+Laction = ∑i wiciℓi
+∑i wi
+.
+(12)
+Finally, ActionDiT and ValueDiT are jointly retrained from the same base initialization. As shown
+in Table 5, value-guided reweighting improves the average success rate from 58.83% to 61.50%,
+yielding a 2.67 percentage-point gain. Improvements are observed in six of the ten object categories,
+with particularly notable gains on the cup, avocado, and beer. These results suggest that ValueDiT
+can provide informative progress signals that can be transferred to action learning through reward-
+like reweighting.
+B.3
+Effect of Multi-View Information
+We further explore the effectiveness of multi-view information, as shown in Table 5, comparing
+three-view and two-view conﬁgurations (without side view), three-view observations achieves the
+average success rate 58.83% compared with 50.00%, while reducing the average execution time
+from 9.05 s to 8.23 s. The improvements are observed in six of the ten object categories, with
+particularly substantial gains on the can, apple, and lemon. This phenomenon indicates that com-
+plementary viewpoints can provide additional visual cues for tracking evolving object states and
+motion, helping the policy better adapt to dynamic targets during manipulation.
+20
+
+
+Table 5 Effects of value-guided action reweighting and multi-view observations. Main (3-
+CAM) denotes the default setting, Reweighted applies value-guided action weights, and Main (2-
+CAM) uses two camera views. Best results are shown in bold.
+Methods
+Moderate-speed
+High-speed
+Average
+Avocado
+Beer
+Potato
+Apple
+Lemon
+Can
+D-Bottle W-Bottle
+Egg
+Cup
+SR (%) ↑Time (s) ↓
+Main (3-CAM)
+60.00±10.80 41.67±10.27 65.00±7.07 45.00±4.08 88.33±6.24 36.67±10.27 86.67±8.50 93.33±4.71 28.33±8.50 43.33±4.71 58.83±1.65 8.23±0.13
+Reweighted (3-CAM) 66.00±4.08 49.33±8.50 61.00±4.08 42.67±2.36 84.33±6.24 37.67±4.71 89.33±4.71 91.00±10.80 29.33±2.36 64.33±6.24 61.50±1.08 8.88±0.57
+Main (2-CAM)
+55.00±4.08 46.67±10.27 46.67±4.71 25.00±10.80 45.00±4.08 8.33±4.71 93.33±6.24 86.67±6.24 28.33±6.24 65.00±4.08 50.00±2.55 9.05±0.10
+Figure 9 Real-world future-value predictions during turntable manipulation. RGB observa-
+tions and 4-step-ahead task-value predictions illustrate progress gains during successful lifting and
+a setback when the cup tips over. Reported value changes are measured around the corresponding
+lift or tip-over event.
+Figure 10 Effect of Hyper λV.
+21
+
+
+Table 6 Detailed results of value-guided action generation ablations. Per-object success rates
+across different value branch designs, conditioning representations, and prediction objectives. Best
+results are shown in bold.
+Methods
+Moderate-speed
+High-speed
+Average
+Avocado
+Beer
+Potato
+Apple
+Lemon
+Can
+D-Bottle W-Bottle
+Egg
+Cup
+SR (%) ↑Time (s) ↓
+(a) Value branch
+Without Value Branch
+48.33±6.24 36.67±6.24 56.67±2.36 41.67±2.36 75.00±4.08 40.00±12.25 85.00±7.07 71.67±9.43 16.67±4.71 33.33±2.36 50.50±1.08 9.65±0.02
+(b) Value representations
+Scalar Conditioning
+53.33±20.14 30.00±14.72 45.00±8.16 36.67±8.50 46.67±6.24 8.33±6.24 73.33±2.36 71.67±9.43 21.67±4.71 21.67±10.27 40.83±1.43 9.02±0.16
+Binary Conditioning
+68.33±2.36 25.00±7.07 46.67±10.27 30.00±7.07 53.33±6.24 40.00±4.08 83.33±9.43 80.00±4.08 13.33±2.36 45.00±14.72 48.50±2.55 8.85±0.08
+(c) Multi-horizon value prediction
+Single-Value (Single Query)
+61.67±11.79 18.33±6.24 56.67±14.34 31.67±4.70 11.67±6.27 3.33±4.71 76.67±2.36 58.33±4.71 20.00±10.80 40.00±0.00 37.83±3.30 9.30±0.10
+Single-Value (Multiple Queries) 56.67±6.24 46.67±6.24 50.00±4.08 23.33±4.71 81.67±15.46 30.00±10.80 71.67±8.50 96.67±4.71 21.67±6.24 26.67±4.71 50.50±0.71 8.40±0.13
+(d) Future progress prediction
+Current-Value Prediction
+65.00±7.07 55.00±8.16 41.67±16.50 40.00±4.08 38.33±4.71 26.67±6.24 75.00±10.80 81.67±10.27 8.33±2.36 33.33±2.36 46.50±2.27 9.02±0.16
+PhysVAM (Full)
+60.00±10.80 41.67±10.27 65.00±7.07 45.00±4.08 88.33±6.24 36.67±10.27 86.67±8.50 93.33±4.71 28.33±8.50 43.33±4.71 58.83±1.65 8.23±0.13
+B.4
+Effect of Value Loss Weight
+We evaluate the effect of the value loss weight λV. As shown in Fig. 10, PhysVAM achieves the
+highest success rate of 58.83% at λV = 0.1, with an average execution time of 8.23 s. Perfor-
+mance remains stable for λV ∈{0.1,0.2,0.4}, while smaller or larger weights reduce the success
+rate. Finally, we chose λV = 0.1 in all experiments to balance action generation and future-value
+learning.
+B.5
+Detailed Ablation Results
+Tables 6 and 7 provide per-object results for the value-guided action generation and motion history
+ablations reported in Tables 2 and 3, respectively.
+Detailed Value Ablation Analysis. As shown in Table 6, different value designs exhibit con-
+siderable performance variations across objects. Although some variants achieve higher success
+rates on individual objects, PhysVAM obtains the highest average success rate and shortest execu-
+tion time. Notably, multi-horizon future-value learning provides stronger overall performance than
+single-value prediction and current-value assessment, highlighting the beneﬁt of explicitly model-
+ing future task progress for dynamic manipulation.
+Detailed Motion History Analysis. As shown in Table 7, motion representations exhibit varying
+effectiveness across object categories. Removing robot motion history reduces the average success
+rate from 58.83% to 45.17%, with particularly pronounced degradation on the potato, lemon, and
+can. Meanwhile, object position and velocity histories provide complementary information, with
+their combination achieving the highest average success rate. Notably, PhysVAM achieves the best
+or tied-best results on eight of the ten object scenes, demonstrating the beneﬁt of jointly modeling
+object and robot motion for dynamic manipulation.
+B.6
+Detailed Real World Results
+Per-object Real-world Results. Table 8 reports detailed success rates across ﬁve object instances.
+PhysVAM consistently outperforms both baselines, achieving gains of 15.0–40.0 percentage points
+22
+
+
+Table 7 Detailed results of object and robot motion history ablations. Per-object success rates
+across different motion representations. All historical inputs span four frames. Best results are
+shown in bold.
+Methods
+Moderate-speed
+High-speed
+Average
+Avocado
+Beer
+Potato
+Apple
+Lemon
+Can
+D-Bottle W-Bottle
+Egg
+Cup
+SR (%) ↑Time (s) ↓
+(a) Object motion representation
+Without Object Motion History
+0.00±0.00 18.33±4.71 1.67±2.36 43.33±11.79 0.00±0.00
+0.00±0.00 78.33±10.27 6.67±4.71 10.00±0.00 13.33±4.71 17.17±2.39 9.65±0.02
+RGB History
+5.00±0.00 23.33±10.27 15.00±4.08 18.33±6.24 6.67±4.71
+0.00±0.00 91.67±4.71 18.33±12.47 21.67±8.50 23.33±6.24 22.33±1.55 9.27±0.26
+Object Position History
+30.00±4.08 23.33±4.71 15.00±8.16 35.00±4.08 33.33±6.24 1.67±2.36 85.00±4.08 16.67±6.24 13.33±8.50 53.33±12.47 30.67±2.01 9.53±0.03
+Object Velocity History (Oracle)
+6.67±2.36 21.67±2.36 41.67±14.34 36.67±2.36 26.67±8.50 3.33±2.36 88.33±2.36 76.67±6.24 23.33±4.71 15.00±4.08 34.00±3.27 9.00±0.10
+Object Velocity History (Estimated) 11.67±6.24 41.67±14.34 30.00±12.25 28.33±4.71 5.00±4.08 10.00±7.07 78.33±4.71 83.33±4.71 16.67±9.43 31.67±9.43 33.67±0.85 8.93±0.04
+(b) Robot motion history
+Without Robot Motion History
+51.67±11.79 40.00±10.80 35.00±12.25 38.33±4.71 41.67±2.36 6.67±2.36 88.33±2.36 88.33±8.50 28.33±4.71 33.33±11.79 45.17±2.05 8.86±0.04
+PhysVAM (Full)
+60.00±10.80 41.67±10.27 65.00±7.07 45.00±4.08 88.33±6.24 36.67±10.27 86.67±8.50 93.33±4.71 28.33±8.50 43.33±4.71 58.83±1.65 8.23±0.13
+Table 8 Detailed per-object real-world manipulation results. Success rates (SR) are reported
+with successful trials and total trials in parentheses. Overall Avg. is computed by equally weighting
+the three dynamic manipulation scenarios. Best results are shown in bold.
+Scenario Object DynamicVLA
+PUMA
+PhysVAM
+Conveyor
+Orange
+30.0 (6/20)
+35.0 (7/20) 70.0 (14/20)
+Cube
+50.0 (10/20) 60.0 (12/20) 75.0 (15/20)
+Avg.
+40.0
+47.5
+72.5
+Turntable
+Bread
+25.0 (5/20)
+35.0 (7/20) 60.0 (12/20)
+Cup
+20.0 (4/20)
+30.0 (6/20) 70.0 (14/20)
+Avg.
+22.5
+32.5
+65.0
+Rolling
+Bottle
+25.0 (5/20)
+30.0 (6/20) 55.0 (11/20)
+Overall Avg.
+29.17
+36.67
+64.17
+over PUMA across all stances. Its overall success rate reaches 64.17%, showing consistent effec-
+tiveness across different objects and dynamic scenarios.
+23

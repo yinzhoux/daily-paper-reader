@@ -1,0 +1,5726 @@
+HIVE-Bench: Evaluating Patch-Level Visual
+Representations for Egocentric Robot Manipulation
+Qiwei Liang1,2,*,§ Zhengtu Liang1,* Minghao Lai3,4,* Yikeng Chen1,* Yiming Wang5,2 Boyang Cai1
+Yuetong Fang1 Taowen Wang1 Baiqiao Yin6 Tianxing Chen7 Yue Chen8 Jiaming Liang1
+Guangyu Chen9 Shaolong Zhu9 Daolin Ma5,2,‡ Renjing Xu1,‡
+1 The Hong Kong University of Science and Technology (Guangzhou)
+2 Xense Robotics
+3 Institute of Automation, Chinese Academy of Sciences
+4 Zhongguancun Academy
+5 Shanghai Jiao Tong University
+6 Nanyang Technological University
+7 The University of Hong Kong
+8 Peking University
+9 Tsinghua University
+* Equal contribution
+§ Project leader
+‡ Corresponding author
+ABSTRACT
+Pretrained vision is a common start for robot learning, but most comparisons still score
+one pooled vector from a third-person image. Bimanual policies instead read dense patch
+tokens from cameras on the robot. We introduce HIVE-Bench: one shared flow-matching
+policy reads 20 encoders from seven families on 24 egocentric bimanual tasks, across
+adaptation, task sharing, and sweeps of data, model size, and layer. Keeping the patches
+matters. Averaging each view to one token removes most of the success, adaptation helps
+every pair we test, and one shared policy keeps most of the success of separate policies at
+a fraction of the updates. The same tokens are then scored with statistics, state and object
+readouts, published vision scores, and an inverse-dynamics readout. That readout of the
+commanded motion is one of the strongest measurements available before a policy is trained.
+Recognition, depth, and correspondence do not transfer reliably. Fine-tuning can improve
+the action readout even when other measurements move the other way, and no statistic is
+stable enough to replace a rollout before any deployment Codebase & Benchmark Zoo.
+KEYWORDS Robot Manipulation • Visual Representation • Egocentric Vision
+Self-supervised
+MAE
+DINOv2
+DINOv3
+Vision-language
+CLIP
+SigLIP
+SigLIP2
+InternViT
+Robot-oriented
+Theia
+RADIOv2.5
+C-RADIOv4
+Geometry
+SPA
+VGGT-Ω
+Robot-oriented
+V-JEPA 2.1
+VC-1
+Voltron
+VLM-derived
+Qwen3-VL
+Xiaomi-Robotics-1
+DepthVLM
+20 encoders
+Patch tokens
+Unified policy
+Success rate
+Egocentric 
+view
+VS
+Evaluation protocols
+Single-task
+Frozen
+Single-task
+Fine-tuned
+Multi-task
+Frozen
+Multi-task
+Fine-tuned
+Scaling analysis
+Demonstrations / task
+50 → 200 → 500 → 1000
+Backbone scale
+S → B → L → G
+Distributions
+Token statistics
+Readout probes
+Inverse dynamics
+t
+t+k
+t
+action
+Robot state
+Object Position
+cos θ
+Egocentric
+Bimanual
+Patch-level Feature
+LingBot-Vision
+Supervised
+ViT
+Diagnostic families
+Figure 1. HIVE-Bench. Twenty pretrained encoders from seven families compete through one shared patch-conditioned
+policy on egocentric bimanual tasks, across data and model scales, training regimes, and adaptation.
+1
+arXiv:2611.30813v1  [cs.RO]  23 Nov 2026
+
+
+1 Introduction
+Robot manipulation policies increasingly reuse pretrained visual encoders instead of learning vision from
+scratch, which transfers poorly across objects, robots, and viewpoints [1–5]. The candidates come from
+very different signals, including self-supervision, language alignment, 3D reconstruction, robot data, and
+vision–language models [6–10]. Choosing among them still means training and rolling out a policy.
+A benchmark with a shared policy can reveal which representations transfer, and whether inexpensive
+measurements explain their successes and failures across different training conditions.
+Earlier evaluations often read a pooled third-person feature and relate scene reconstruction to control [2, 3, 11–
+15]. Bimanual policies do not use that interface. They attend to dense patch tokens, which keep the local
+detail that separates nearby grasps [16–19], and they see through head and wrist cameras that move with the
+robot and are often occluded [20–23]. We therefore ask how encoders compare when one policy reads their
+patch tokens from onboard cameras, and which properties of those tokens track the resulting success.
+We introduce HIVE-Bench (Figure 1), to our knowledge the first comprehensive benchmark of patch-level
+representations for egocentric bimanual manipulation that jointly studies control and diagnostic correlations
+across training regimes. A flow-matching action head [24, 25] reads 20 encoders from seven families on
+two egocentric bimanual suites [22, 26]. We train it frozen and fine-tuned, on one task and on a shared
+suite, and we sweep data, model size, and the extracted layer, because a ranking from a single regime is easy
+to over-read. The same tokens are then scored in several ways: token statistics, state and object readouts,
+published vision benchmarks, and an inverse-dynamics readout (IDM) that recovers the commanded motion.
+Those runs support three simple conclusions. Keeping the patch tokens, rather than averaging each view into
+one, accounts for most of the success of the encoders we compare this way. Fine-tuning improves every
+encoder we adapt, and one policy shared across tasks keeps most of the success of separate policies at a
+fraction of the updates. The measurements are the second half of the study. Several of them correlate with
+success somewhere, but none is stable enough to prove which encoder a robot should use. IDM is among
+the strongest readouts, especially on RoboTwin, yet even its ranking misses the best encoder and fails to
+predict gains from adaptation. Our goal is to map these relationships and their limits; finding measurements
+that improve on IDM remains an open research problem. Our contributions are:
+■An egocentric patch-level benchmark: one shared policy reads the dense patch tokens, not a pooled
+vector, of 20 encoders from onboard cameras on two bimanual suites under one shared update budget,
+through documented token interfaces (Section 3).
+■Evaluation from many angles: single-task and multi-task training, frozen and fine-tuned encoders,
+demonstration and model-size scaling, extraction layers, pooling, and optional robot state, with the action
+head and optimizer held fixed (Section 4).
+■A study of what tracks success, and where it stops: token statistics, action and state readouts, and
+published vision scores, compared across suites, task sharing, and adaptation, with the cases where a
+frozen ranking fails to predict improvement kept separate from the cases where it holds, and with IDM
+among the strongest metrics (Sections 5 and 6).
+2 Related Work
+Pretrained representations for control.
+Global embeddings made pretrained vision easy to reuse in
+control [1, 2, 4]. Later encoders learn from robot data or distill several teachers [9, 14, 27–31]. Evaluations
+have compared adaptation, downstream learners, data, and objectives [2, 11, 12, 32], usually from one
+pooled third-person feature and a separately trained policy. Newer studies keep more spatial input, but
+still differ in embodiment, task sharing, and what they measure (Table 1).
+2
+
+
+Table 2. Environments and protocols. Both have 12 tasks and predict 16-step action chunks. Demos are per task.
+“Executed” is the part of each chunk run before replanning. The last columns give the training regime and the number
+of encoders. Default policies use images without proprioception; diagnostics read the head camera.
+Benchmark
+Robot
+Demos
+Views
+Action
+Executed
+Frozen
+Fine-tuned
+RoboCasa-GR1
+Humanoid, hands
+1,000
+Head
+29-D
+12 of 16
+17 ST, 20 MT
+5 ST
+RoboTwin 2.0
+Two arms
+500
+Head, 2 wrists
+14-D joints
+16 of 16
+20 MT
+5 MT
+Spatial policy interfaces and egocentric bimanual manipulation.
+ALOHA, ACT, Mobile ALOHA,
+UMI, DexMimicGen, and GR00T advanced bimanual skills with onboard views, dexterous hands, and
+humanoids [20, 21, 23, 25, 33–35]. Policies differ in how much spatial detail they keep, from TokenLearner
+compression in RT-1 to dense pretrained tokens in Patch Policy [18, 36, 37], and VLA systems and world-
+action models integrate vision with action prediction [16, 17, 38–42]. HIVE-Bench holds the action head
+fixed, so only the encoder and its token interface change between two compared policies.
+Diagnosing representation quality.
+Proposed proxies include segmentation ability [13], objectness [43],
+manipulation relevance [3], token-norm entropy [14], attention allocation [44], effective rank [45], physical
+structure [9, 15], temporal progression [46], and action recoverability from world-model latents [47]. Each
+measures one aspect under its own policy. We measure token statistics, state and action readouts [48], and
+published vision scores under one patch-level policy, across task sharing, scale, and adaptation, and test
+which associations survive a change of setting. Table 1 places this coverage next to the closest prior studies.
+Table 1. Coverage of representation evaluation. Ego: onboard views. Bi: bimanual. Patch: spatial tokens.
+F/FT: frozen and fine-tuned. S/M: single- and multi-task. Stat, State, and Act: token statistics, state decoding,
+and action readout.
+Corr: association with success.
+Study
+Setting
+Training
+Diagnostics
+Ego
+Bi
+Patch
+F/FT
+S/M
+Stat
+State
+Act
+Corr
+VC-1 (2023) [2]
+✓
+×
+✓
+✓
+×
+×
+×
+×
+×
+Hu et al. (2023) [11]
+×
+×
+×
+×
+×
+×
+✓
+×
+✓
+Burns et al. (2023) [13]
+✓
+✓
+✓
+×
+×
+×
+×
+×
+✓
+Theia (2024) [14]
+✓
+×
+✓
+✓
+×
+✓
+×
+×
+✓
+SPA (2025) [9]
+✓
+✓
+✓
+×
+✓
+×
+✓
+×
+✓
+CVESC (2026) [15]
+×
+×
+×
+✓
+×
+×
+✓
+×
+✓
+RoS (2026) [47]
+×
+×
+✓
+×
+×
+×
+×
+✓
+×
+Patch Policy (2026) [18]
+✓
+×
+✓
+×
+✓
+×
+×
+×
+×
+HIVE-Bench
+✓
+✓
+✓
+✓
+✓
+✓
+✓
+✓
+✓
+3 HIVE-Bench
+HIVE-Bench compares encoders by the closed-loop success of one shared patch-conditioned policy,
+and asks which measurable properties of the tokens go with that success. The environments that sup-
+ply the tasks and the policy that reads them are introduced separately below. Appendix A gives the
+implementation and the training recipe.
+3.1 Environments and protocols
+We use 12 RoboCasa-GR1 kitchen tasks, performed by a humanoid whose 29-D action adds difficulty [25,
+26, 49], and 12 domain-randomized RoboTwin 2.0 tasks, performed by two arms with grippers [22, 50]
+(Figure 2; Table 23). RoboCasa covers object transfer and cabinet, drawer, and microwave interactions.
+RoboTwin covers tool use, handover, placement, and articulated objects under randomized clutter, lighting,
+and textures. The suites differ in robot, action, cameras, tasks, and data at once, so differences between them
+are observational. Default policies see only the current images. One ablation adds robot state (Section 4.5).
+3
+
+
+RoboCasa-GR1
+RoboTwin2.0
+Figure 2. Environments. Sample scenes from RoboCasa-GR1 (left), where a humanoid with dexterous hands
+works in varied kitchens, and RoboTwin 2.0 (right), where two arms with grippers work on tabletops with ran-
+domized clutter, lighting, and textures.
+Multi-task training (MT) fits one language-conditioned policy to the twelve tasks of a suite. Single-task
+training (ST) fits a separate policy to each RoboCasa task. The closed-loop comparison covers 20 frozen
+encoders under MT, 17 of them under ST, and five fine-tuned encoders on RoboCasa ST and on RoboTwin
+MT (Table 2). Further controls vary the number of demonstrations, the checkpoint size, the extraction layer,
+mean pooling, the state input, and the learned queries of the action head. Every configuration in the main
+comparison is trained with one seed and evaluated with three evaluation seeds of 50 rollouts per task. A suite
+score is the mean of the twelve task scores, and its deviation propagates the per-task evaluation deviations. A
+three-seed RoboCasa MT study, including its stability analysis, is reported in Appendix C.7.
+3.2 Encoders and the token interface
+The 20 encoders span seven families (Table 6): a supervised ViT [51]; the self-supervised MAE, DINOv2,
+DINOv3, and V-JEPA 2.1 [6, 7, 52, 53]; the geometry-oriented SPA, VGGT-Ω, and LingBot-Vision [9, 54, 55];
+the vision–language CLIP, SigLIP, SigLIP2, and InternViT [8, 56–58]; the robot-oriented VC-1 and
+Voltron [2, 27]; the multi-teacher Theia, RADIOv2.5, and C-RADIOv4 [14, 28, 29]; and three VLMs,
+Qwen3-VL and its derivatives DepthVLM and Xiaomi-Robotics-1 [10, 59, 60]. Table 3 lists sizes and
+token counts. Appendix B documents checkpoints and preprocessing.
+The policy reads every patch token of every view. Class and register tokens are removed, and there is no
+extra feature normalization at the policy interface. Views are stored at 224 × 224, giving 196 or 256 tokens
+per view for patch size 16 or 14. V-JEPA 2.1 resizes to 384 pixels and produces 576 tokens, and each VLM
+contributes 64 final-layer image tokens. Those VLM states do not depend on the instruction, and we do not use
+Xiaomi-Robotics-1’s action head. Two interfaces mix views before the policy reads them: VGGT-Ω receives
+RoboTwin’s three views as one input, and a VLM’s image tokens of later views can attend to earlier ones. We
+therefore compare an encoder under a documented extraction interface, not in isolation (Appendix B).
+3.3 The shared policy
+The action head is a DiT flow-matching model derived from GR00T [24, 25, 61], with 16 blocks of width
+768 and twelve heads of dimension 𝑑ℎ= 64 (Figure 3). It operates on 32 learned query tokens and 16
+noisy action tokens 𝐻𝑡. The queries are latent positions for attention, and only the action positions are
+decoded into a velocity. They are distinct from the encoder’s register tokens, which are discarded before
+this head sees the image. Eight blocks cross-attend to the context 𝐶𝑡and eight apply self-attention, in
+alternation, and adaptive layer normalization conditions every block on the flow time. 𝐶𝑡concatenates
+the patch tokens of all views. Multi-task runs append projected features of a frozen CLIP text encoder
+alongside visual tokens for task conditioning, so vision enters the policy only through
+CrossAttn(𝐻𝑡, 𝐶𝑡) = softmax (𝐻𝑡𝑊𝑄)(𝐶𝑡𝑊𝐾)⊤/
+√︁
+𝑑ℎ
+ 𝐶𝑡𝑊𝑉.
+(1)
+4
+
+
+DiT Action 
+Expert
+VLM / VFM
+VLM / VFM
+Img
+DiT Action 
+Expert
+/
+Noisy Action Chunk
+Action Chunk
+Img
+/
+Noisy Action Chunk
+Action Chunk
+Text
+Encoder
+Task Prompt
+Token Concatenation
+(a) Single-Task Setting
+(b) Multi-Task Setting
+Patch-Level 
+Visual Features
+Figure 3. The shared policy. (a) Single-task: patch tokens from a frozen or fine-tuned encoder, a vision foundation
+model or a VLM, condition a DiT action expert that denoises a 16-step action chunk. (b) Multi-task: visual and
+frozen text tokens condition the action expert, with task instructions supplied alongside the visual observations.
+Flames mark trained modules and snowflakes mark frozen ones.
+The head regresses the flow-matching velocity toward the normalized 16-step action chunk. The flow
+time is drawn from Beta(1.5, 1), with eight noise draws per sample, and inference integrates 15 Euler
+steps on RoboCasa or 10 on RoboTwin. Action heads span 138.669–156.478M parameters. Appendix A
+gives complete downstream counts and the flow objective.
+Each policy is trained for 100k AdamW steps with a global batch of 128 on four GPUs, in BF16, with
+warmup and cosine decay. The budget is equal per policy, not per task, so twelve single-task policies
+consume twelve times the updates of one multi-task policy on the same suite. The action head uses a peak
+learning rate of 10−4. Fine-tuning updates the encoder at 10−5. Other trainable projections use 3 × 10−5
+on RoboCasa MT and 10−4 otherwise. Frozen runs update the head and its projections only. Table 3
+reports training FLOPs and step time, and Appendix A gives the complete recipe.
+3.4 Diagnostics and statistics
+The diagnostics describe each encoder from head-camera frames, before asking which of those descrip-
+tions agree with closed-loop success (Appendix E).
+■Token statistics need only frames: patch similarity, norms, covariance rank, spatial frequency, and their
+change through an episode. Norm-histogram entropy [14] bins each frame’s patch norms into 30 bins.
+Features come from the early frames of every fifth demonstration.
+■IDM and state probes use four-layer, width-256 transformers and a learned query; only input projections
+grow with encoder width. The IDM probe reads frames 16 steps apart and predicts the standardized
+command displacement 𝑎𝑡+15 −𝑠𝑡. A single-frame control predicts that same target from 𝐼𝑡, and the state
+probe decodes 𝑠𝑡. An object probe covers four RoboTwin tasks. Because the IDM target contains 𝑠𝑡, part
+of it is readable from one frame (Appendix E.2).
+■Published vision scores are collected for the checkpoints that report them under a shared protocol,
+covering classification, segmentation, depth, correspondence, and label propagation (Section 5.2).
+Associations use Spearman’s 𝜌, a permutation test, a 95% bootstrap interval, and a Benjamini–Hochberg
+correction within each cohort. Primary cohorts are the vision encoders; readouts also include the VLMs.
+Family deletion and paired before–after comparisons test whether an association depends on related
+encoders or on adaptation (Appendix E.3).
+These measurements are cheaper than training the policy. Token statistics need only demonstration frames,
+the probes train for four epochs on frozen tokens, and the vision scores come from published evaluations
+rather than new robot runs. Section 5 then asks which of them agrees with closed-loop success, and which
+of those agreements disappear when the benchmark or the training regime changes.
+5
+
+
+DINOv2
+DINOv3
+0
+20
+40
+Success (%)
+9.94
+6.44
+32.28
+31.22
+(a) Mean vs patch
+Mean
+Patch
+20
+50
+80
+Frozen success (%)
+20
+50
+80
+Fine-tuned (%)
+(b) Frozen vs fine-tuned
+0
+25
+50
+Single-task (%)
+0
+25
+50
+Multi-task (%)
+(c) Single vs multi-task
+○ Casa ST   □ Twin MT
+DINOv2
+DINOv3
+SigLIP2
+VC-1
+VGGT-Ω
+Figure 4. Spatial tokens, adaptation, and task sharing. (a) Mean pooling versus patch tokens on RoboCasa MT. (b)
+Frozen versus fine-tuned success on RoboCasa ST (circles) and RoboTwin MT (squares). (c) RoboCasa ST versus MT,
+with 100k training steps per policy and the same demonstrations per task. Dashed lines denote equal success.
+4 What Makes a Visual Representation Useful for Control?
+We first examine the policy interface, then encoder choice, task sharing, scale, and additional inputs.
+Success rates are percentages; changes are in percentage points.
+4.1 Preserve spatial tokens, then adapt the encoder
+Mean pooling discards much of the information the policy uses.
+Replacing each view’s patches
+with their mean and retraining the same head reduces DINOv2 from 32.28% to 9.94% and DINOv3
+from 31.22% to 6.44% on RoboCasa MT (Figure 4a). The loss appears in 23 of 24 encoder–task pairs
+(Appendix C.2). Scene identity can survive pooling while local distinctions needed to act disappear;
+evaluating individual patches exposes that difference.
+Fine-tuning improves success, with returns that depend on the encoder.
+Jointly adapting five encoders
+and the head improves all ten benchmark pairs (Figure 4b): gains span 1.11–9.44 points on RoboCasa ST and
+2.22–26.06 on RoboTwin MT. VGGT-Ω rises from 50.00% to 76.06% on RoboTwin, whereas DINOv2 moves
+from 49.39% to 51.61%. The five retain their frozen ordering there; on RoboCasa, DINOv3 overtakes DINOv2
+and VC-1. A strong starting point and a large return to adaptation are distinct advantages (Appendix C.2).
+4.2 Multi-task performance across encoders
+Strong encoders emerge from several pretraining families.
+We next hold the patch-conditioned interface
+fixed and compare the full encoder suite under MT (Table 3). VGGT-Ω leads RoboCasa at 35.39%,
+followed by C-RADIOv4 at 34.78% and DINOv2 at 32.28%. The three VLMs lead RoboTwin at 51.44–
+53.67%.
+Cross-benchmark ranks agree only moderately (𝜌= 0.43): VC-1 outperforms V-JEPA 2.1
+on RoboCasa but trails it on RoboTwin.
+Pretraining family alone is too broad a label to settle the
+choice; the target setting changes which strengths matter.
+Cost also changes the choice. DINOv2 comes within 3.11 points of VGGT-Ω on RoboCasa at 54.8 versus
+113.3 TFLOPs per step, while the VLMs lead RoboTwin at 195.3 TFLOPs per step. A shared optimizer
+schedule therefore does not make the encoders equally expensive to train, and the cheaper run can be
+the practical choice when the success gap is only a few points.
+4.3 Sharing a policy makes broad task coverage affordable
+One shared policy preserves most of the success of task-specific policies.
+To measure the price of sharing,
+we compare RoboCasa ST and MT with identical demonstrations per task and 100k updates per policy
+6
+
+
+Table 3. Frozen multi-task policies. Twelve-task mean success with propagated evaluation deviations; Rk is rank.
+First, second, and third are highlighted. 𝑁× 𝐷: tokens per view and context width; †VLM features are projected
+to 1,024 channels. Training cost is per RoboCasa MT step. Family colors follow Table 6.
+RoboCasa MT
+RoboTwin MT
+Training / step
+Encoder
+Params
+𝑵× 𝑫
+SR
+Rk
+SR
+Rk
+TFLOPs
+s
+VGGT-Ω
+1B
+196 × 2, 048
+35.39 ±1.33
+1
+50.00 ±1.33
+4
+113.3
+0.869
+LingBot-Vision
+300M
+196 × 1, 024
+29.39 ±1.49
+5
+46.78 ±1.37
+6
+65.5
+0.676
+SPA
+86M
+196 × 768
+16.50 ±1.14
+17
+12.33 ±0.95
+20
+49.7
+0.565
+DINOv2
+86M
+256 × 768
+32.28 ±1.45
+3
+49.39 ±1.04
+5
+54.8
+0.662
+DINOv3
+86M
+196 × 768
+31.22 ±1.34
+4
+30.44 ±1.44
+13
+49.8
+0.597
+MAE
+86M
+196 × 768
+25.28 ±1.49
+8
+26.67 ±1.56
+15
+49.7
+0.576
+V-JEPA 2.1
+80M
+576 × 768
+18.67 ±1.22
+15
+39.61 ±1.28
+10
+83.0
+0.923
+Xiaomi-Robotics-1
+4.4B
+64 × 1, 024†
+25.17 ±1.70
+9
+53.22 ±1.30
+2
+195.3
+1.120
+DepthVLM
+4B
+64 × 1, 024†
+18.50 ±1.08
+16
+53.67 ±1.24
+1
+195.3
+1.138
+Qwen3-VL
+4B
+64 × 1, 024†
+19.56 ±1.19
+14
+51.44 ±1.17
+3
+195.3
+1.132
+SigLIP2
+86M
+196 × 768
+29.11 ±1.53
+6
+44.22 ±1.24
+8
+49.7
+0.581
+InternViT
+300M
+256 × 1, 024
+20.11 ±0.97
+13
+30.94 ±1.28
+12
+75.1
+0.663
+SigLIP
+86M
+196 × 768
+13.67 ±1.28
+18.5
+28.39 ±1.37
+14
+49.7
+0.595
+CLIP
+86M
+196 × 768
+11.44 ±0.98
+20
+21.33 ±0.84
+18
+49.7
+0.589
+VC-1
+86M
+196 × 768
+28.44 ±1.42
+7
+25.06 ±1.46
+16
+49.7
+0.570
+Voltron
+86M
+196 × 768
+24.83 ±1.01
+10.5
+22.72 ±1.04
+17
+51.9
+0.602
+Theia
+86M
+196 × 768
+24.83 ±1.08
+10.5
+43.83 ±0.87
+9
+49.7
+0.610
+C-RADIOv4
+631M
+196 × 1, 280
+34.78 ±1.43
+2
+45.17 ±1.39
+7
+87.8
+0.669
+RADIOv2.5
+98M
+196 × 768
+24.39 ±1.11
+12
+31.11 ±1.19
+11
+49.8
+0.565
+ViT
+86M
+196 × 768
+13.67 ±1.23
+18.5
+18.61 ±0.99
+19
+49.7
+0.577
+50
+200
+1k
+Demos / task
+0
+20
+40
+Success (%)
+(a) RoboCasa
+50
+200
+500
+Demos / task
+0
+30
+60
+(b) RoboTwin
+20
+100
+1k
+Parameters (M)
+0
+30
+60
+(c) RoboCasa
+20
+100
+1k
+Parameters (M)
+0
+30
+60
+(d) RoboTwin
+DINOv2
+DINOv3
+SigLIP2
+VC-1
+V-JEPA 2.1
+Figure 5.
+Scaling multi-task policies.
+Demonstrations per task (a, b) and encoder size (c, d); rings mark
+default checkpoints and error bars propagate evaluation deviations. Each policy uses the same update budget.
+The four-task RoboCasa ST sweep is in Appendix C.3.
+(Figure 4c). The average falls from 26.94% to 23.62%, retaining 87.7% of ST success. Losses vary: 0.67
+points for SigLIP2, 1.28 for DINOv3, and 7.78 for VGGT-Ω; MAE and Xiaomi-Robotics-1 improve slightly.
+One MT run covers all twelve tasks with one twelfth of the optimizer steps. Each task receives fewer
+updates, yet most of its success survives (Appendix C.1). The saving is in updates per suite, not in
+demonstrations per task, which stay matched between the two regimes.
+4.4 More demonstrations help more consistently than more parameters
+Additional demonstrations improve every curve.
+We retrain policies on nested demonstration subsets
+with the same update budget. Increasing demonstrations per task from 50 to 1,000 adds 24.44–28.16
+7
+
+
+points across RoboCasa MT encoders. All RoboTwin curves improve from 50 to 500; SigLIP2 gains
+34.94 points and overtakes DINOv3 (Figure 5a,b). On matched RoboCasa tasks C1–C4, doubling 500
+to 1,000 adds 10.33–13.00 points for MT, versus −0.17 to +3.83 for ST. Shared policies still benefit
+where task-specific curves flatten (Appendix C.3).
+The value of model scale depends on the family.
+Within-family sweeps show a less uniform return.
+DINOv2 improves from Small to Base, then plateaus on RoboTwin and declines on RoboCasa; DINOv3
+Base is its family’s strongest RoboCasa checkpoint. V-JEPA 2.1 instead rises from 18.67% to 36.22% on
+RoboCasa between Base and giant, and reaches 55.89% on RoboTwin. VC-1 Large improves on both suites
+(Figure 5c,d). Scale helps when the additional capacity transfers to the policy.
+4.5 Input and extraction choices have different returns
+Robot state and finer image grids give smaller gains.
+Two controls test whether missing proprioception
+or a coarser grid explains the encoder gaps. A state token improves DINOv2 and RADIOv2.5 by 0.39–2.97
+points and preserves their ordering (Figure 6a,b). More than doubling DINOv3’s tokens, from 196 to
+400, adds 1.17 and 4.17 points. Both effects are smaller than retaining patches in the first place, so the
+image stream, not a missing state token, carries most of the gap.
+An intermediate layer can recover much of a VLM’s RoboCasa deficit.
+Replacing final-layer features
+with layer 16 tests whether useful information is easier to read earlier in the network. Qwen3-VL and Xiaomi
+gain 8–11 points on RoboCasa and change by less than a point on RoboTwin (Figure 6c). The useful layer is
+not the same for every model, just as the useful size is not the same for every family (Appendices C.5–C.6).
+5 What Tracks Closed-Loop Success?
+Prior work connects an encoder’s value for control to its ability to recover scene structure, robot state,
+or actions [9, 13, 15, 47]. We compare these readouts with label-free token statistics and published
+vision scores, then ask which relationships persist across settings and adaptation. Figure 7 summarizes
+the main contrasts; Appendix E reports all associations.
+0
+30
+60
+Success (%)
+DINOv2
++ state
+RADIO
++ state
+DINOv3
+320 px
+32.28
+24.39
+31.22
+35.25
+26.17
+32.39
+(a) RoboCasa
+0
+30
+60
+Success (%)
+49.39
+31.11
+30.44
+49.78
+33.06
+34.61
+(b) RoboTwin
+0
+5
+10
+Layer 16 gain (pp)
+Qwen ST
+Xiaomi ST
+Depth ST
+LingBot ST
+Qwen MT
+Xiaomi MT
+Qwen MT
+Xiaomi MT
++8.89
++8.28
++5.95
++1.28
++10.66
++8.27
+-0.72
+-0.44
+(c) Extraction layer
+Default
++ state / 320 px
+Casa ST
+Casa MT
+Twin MT
+Figure 6. Changing inputs and the extraction layer. (a, b) MT success with robot state or DINOv3 at 320
+pixels (400 versus 196 tokens per view). (c) Layer-16 minus final-layer success; ST and MT denote the policy
+regime. Layer choice has larger effects on RoboCasa than the input additions.
+8
+
+
+Table 4. Readout error versus success. Raw Spearman 𝜌; darker green marks stronger negative associations. Bold
+entries have 𝑞< 0.05 among primary diagnostics. Adding VLMs preserves the state association but largely removes
+the object association. Cohorts and single-frame control tests are detailed in Appendix E.3.
+Vision encoders
+Including VLMs
+Readout
+Casa ST
+Casa MT
+Twin MT
+Casa ST
+Casa MT
+Twin MT
+Two-frame IDM
+-0.38
+-0.47
+-0.75
+-0.28
+-0.53
+-0.70
+Robot state
+-0.44
+-0.39
+-0.62
+-0.53
+-0.50
+-0.50
+Single-frame IDM
+-0.42
+-0.50
+-0.65
+-0.36
+-0.53
+-0.56
+Object position
+–
+–
+-0.54
+–
+–
+-0.05
+5.1 Action readout is informative, but shares a static component
+IDM is one of the strongest readouts of closed-loop success.
+We ask which cheap measurement
+best ranks frozen encoders before a policy is trained. Among vision encoders, two-frame IDM error
+correlates with RoboTwin MT success at 𝜌= −0.75 (95% interval [−0.90, −0.40], 𝑞= 0.020), and
+removing any pretraining family leaves 𝜌between −0.88 and −0.70. The association keeps the expected
+sign on the tasks we test. IDM is thus a strong correlate on RoboTwin, although even this association
+does not reliably identify the best encoder for control.
+Matching probe capacity preserves the state association.
+With the same width-256 transformer, state
+error correlates with success at −0.44, −0.39, and −0.62 across the three vision cohorts. Including VLMs
+leaves associations of −0.53, −0.50, and −0.50 (Table 4). Object error behaves differently: its RoboTwin
+correlation changes from −0.54 to −0.05 with VLMs. Recovering robot configuration and object position
+therefore give different assessments of the same representations.
+A future frame improves prediction, but does not isolate motion.
+Because the target includes 𝑠𝑡,
+IDM and state errors move together (𝜌= 0.80 and 0.82). A future frame lowers error for every frozen
+encoder, by 40.7% and 46.9% at the median, but the encoder order barely changes. The second view
+therefore adds information without changing which encoder looks best. This control tests access to a
+later observation, rather than isolating motion understanding.
+Casa ST
+Casa MT
+Twin MT
+IDM error
+State error
+Single-frame error
+Low-freq. power
+High-freq. power
+Spectral entropy
+Norm entropy
+Temporal entropy
+Effective rank
++0.38
++0.47
++0.75
++0.44
++0.39
++0.62
++0.42
++0.50
++0.65
++0.74
++0.68
++0.34
+-0.75
+-0.70
+-0.29
+-0.75
+-0.68
+-0.34
++0.66
++0.42
++0.26
++0.26
++0.33
++0.26
+-0.05
++0.13
++0.06
+(a) Diagnostic associations
+Small
+Base
+Large
+−20
+−10
+0
+10
+DINOv3 − DINOv2 (pp)
++1.6
++3.5
++6.4
++2.9
++1.9
++2.4
+-8.6
+-1.1
+-3.6
+-18.9
+-18.9
+-22.3
+(b) Vision vs control
+−1
+0
+1
+Oriented Spearman ρ
+ADE20k
+NAVI
+Casa success
+Twin success
+Figure 7. Different settings favor different diagnostics. (a) Associations with success among vision encoders.
+Error signs are reversed; other metrics retain their signs.
+Bold cells have 𝑞< 0.05 among primary diagnos-
+tics.
+(b) DINOv3 minus DINOv2 at matched sizes: vision gains and control losses point in opposite direc-
+tions.
+Differences use each metric’s score points.
+9
+
+
+Fine-tuning improves action readout without uniformly improving scene readout.
+Repeating the
+readouts after policy learning separates adaptation from cross-encoder differences. All five paired RoboTwin
+encoders improve success and lower both IDM and state error, yet four increase object error (Figure 8).
+The gain in success and the gain in object readout are not the same change.
+Policy learning favors
+action-relevant information without improving every scene readout.
+.02
+.1
+10
+40
+70
+RoboTwin success (%)
+(a) IDM error
+.01
+.1
+10
+40
+70
+(b) State error
+0.02
+0.04
+0.06
+10
+40
+70
+(c) Object error
+0.7
+0.8
+10
+40
+70
+(d) Temp. entropy
+VGGT-Ω
+DINOv2
+DINOv3
+VC-1
+SigLIP2
+Frozen defaults
+Other sizes
+Figure 8. Following encoders through fine-tuning on RoboTwin. Arrows join frozen (open) and adapted (filled)
+checkpoints. Gray points show frozen defaults; blue diamonds add other model sizes. Action error falls consistently,
+while object error and temporal entropy need not improve with success. The first two horizontal axes are logarithmic.
+Pooling adapted checkpoints with frozen encoders strengthens the IDM correlation to −0.80, versus
+−0.40 within the adapted group. Frozen IDM error does not order adapted success. The pooled rela-
+tionship mostly separates frozen from adapted representations, so it is a weak guide to which encoder
+to fine-tune. A strong correlation across the pooled set can be read as evidence about adaptation when
+it is only evidence about the frozen starting points.
+Broad associations also leave room for size and layer reversals.
+Across size variants the IDM–success
+correlation remains negative, yet DINOv2 Base to giant lowers IDM error while success falls. Qwen and
+Xiaomi likewise improve both readouts at layer 16 on RoboTwin, with little change in success. Size and
+layer are changes inside one model, and a cross-encoder correlation need not survive them. A readout
+can separate pretrained encoders without predicting every change inside one model.
+5.2 Better vision scores do not reliably imply better control
+Published vision scores provide no consistent ordering for control.
+Matched checkpoints for classi-
+fication, segmentation, depth, correspondence, and label propagation [29, 52, 55] show no nominal
+association with multi-task success on either suite (Appendix E.6).
+ImageNet linear-probe accuracy
+gives 𝜌= 0.07 on RoboCasa and 0.38 on RoboTwin.
+Matched sizes sharpen the contrast. DINOv3 gains 1.65–6.37 mIoU on ADE20k and 1.9–2.9 NAVI
+points over DINOv2, yet loses 1.06–8.56 success points on RoboCasa and 18.94–22.33 on RoboTwin
+(Figure 7b). A high score on a vision benchmark can sit next to a strong policy, but the improvement
+on the benchmark is not the improvement in control.
+5.3 Token structure is informative within a setting
+Low-frequency spatial structure stands out on RoboCasa.
+Low-frequency spatial power correlates
+with success at +0.74 for ST and +0.68 for MT, and the complementary high-frequency measures survive
+correction on both RoboCasa regimes. These summaries describe one spectrum, not four causes. On
+10
+
+
+Table 5. Predicting a held-out encoder family. Nested ridge regression; MAE is in success points, and ↓% is
+error reduction relative to the mean baseline. Green shading shows the reduction; bold marks the lowest MAE.
+“All four” adds temporal norm entropy to IDM, state, and norm entropy.
+Casa ST
+Casa MT
+Twin MT
+Predictor
+MAE
+↓%
+MAE
+↓%
+MAE
+↓%
+Mean baseline
+8.24
+–
+7.03
+–
+10.91
+–
+IDM
+8.25
+-0.2
+6.69
++4.9
+6.73
++38.3
+State
+7.76
++5.8
+6.56
++6.7
+7.00
++35.9
+IDM + State
+7.82
++5.1
+5.94
++15.6
+7.95
++27.1
+IDM + entropy
+7.25
++12.0
+5.86
++16.7
+7.50
++31.2
+All four
+7.75
++5.9
+7.06
+-0.4
+8.01
++26.6
+RoboTwin the low-frequency association falls to +0.34 and does not survive correction. The association
+describes the tokens the policy reads; it does not say that smoothing a feature map would help.
+Norm entropy is useful mainly before adaptation.
+Norm-histogram entropy correlates with frozen
+success at +0.66, +0.42, and +0.26, then temporal norm entropy falls in four of five fine-tuned pairs even
+as success rises. Covariance rank is similar: the participation ratio is essentially uncorrelated with frozen
+success, and fine-tuning collapses a 3.15–23.62 range into 5.67–7.04. Neither a diverse norm histogram
+nor a high-dimensional feature cloud is a universal control objective.
+5.4 Combining diagnostics and selecting candidates
+More diagnostics help selectively.
+Nested family-held-out prediction tests whether diagnostics complement
+one another (Table 5). IDM lowers RoboTwin MAE from 10.91 to 6.73 points, and state or entropy adds
+no further benefit there. Adding every measurement at once loses to the best smaller subset in every
+setting. Extra measurements help only when their information transfers, so the gain comes from keeping
+the measurement that is new in that setting, not from collecting a longer list.
+A useful screen need not identify the best encoder.
+The five lowest-IDM encoders retain 53.22%
+RoboTwin success, 0.45 points below the best, using one quarter of the runs. The same screen falls below
+random selection on both RoboCasa regimes (Table 20). A shortlist can therefore sit close to the best encoder
+and still miss it, which is why the remaining candidates are checked with policy runs.
+The benchmark matters more than task sharing.
+Profiles agree much more closely within RoboCasa
+(𝑟= 0.95) than between the two benchmarks (𝑟= 0.65), so changing the robot and the views changes
+which properties accompany success. Sharing the tasks barely changes that profile, and a diagnostic chosen
+on single-task data remains informative when those tasks are trained together.
+6 Discussion and Conclusion
+HIVE-Bench connects dense egocentric representations to the policies that use them. Preserving patches,
+adding demonstrations, and adapting features improve control, and task sharing broadens coverage
+cheaply. IDM is one of the strongest guides to which frozen encoder will succeed, but no measure-
+ment is stable enough to prove that choice.
+Three physical tasks preserve DINOv2’s lead over DINOv3 and CLIP (Appendix D). The other evidence
+uses one head and two suites, so more tasks and seeds are still needed.
+The open question is how to improve on IDM while keeping closed-loop success as the final measure.
+11
+
+
+References
+[1] Suraj Nair, Aravind Rajeswaran, Vikash Kumar, Chelsea Finn, and Abhinav Gupta. R3M: A universal
+visual representation for robot manipulation. In Conference on Robot Learning, pages 892–909. PMLR,
+2022.
+[2] Arjun Majumdar, Karmesh Yadav, Sergio Arnaud, Jason Ma, Claire Chen, Sneha Silwal, Aryan Jain,
+Vincent-Pierre Berges, Tingfan Wu, Jay Vakil, et al. Where are we in the search for an artificial visual
+cortex for embodied intelligence? Advances in Neural Information Processing Systems, 36:655–677,
+2023.
+[3] Guangqi Jiang, Yifei Sun, Tao Huang, Huanyu Li, Yongyuan Liang, and Huazhe Xu. Robots pre-train
+robots: Manipulation-centric robotic representation from large-scale robot datasets. In International
+Conference on Learning Representations, 2025.
+[4] Simone Parisi, Aravind Rajeswaran, Senthil Purushwalkam, and Abhinav Gupta. The unsurprising
+effectiveness of pre-trained vision models for control. In International Conference on Machine Learning,
+pages 17359–17371. PMLR, 2022.
+[5] Annie Xie, Lisa Lee, Ted Xiao, and Chelsea Finn. Decomposing the generalization gap in imitation
+learning for visual robotic manipulation. In IEEE International Conference on Robotics and Automation
+(ICRA), 2024.
+[6] Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Dollár, and Ross Girshick. Masked
+autoencoders are scalable vision learners. In Proceedings of the IEEE/CVF Conference on Computer
+Vision and Pattern Recognition, pages 16000–16009, 2022.
+[7] Maxime Oquab, Timothée Darcet, Théo Moutakanni, Huy Vo, Marc Szafraniec, Vasil Khalidov, Pierre
+Fernandez, Daniel Haziza, Francisco Massa, Alaaeldin El-Nouby, et al. DINOv2: Learning robust
+visual features without supervision. Transactions on Machine Learning Research, 2024.
+[8] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish
+Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learning transferable visual models from
+natural language supervision. In International Conference on Machine Learning, pages 8748–8763.
+PMLR, 2021.
+[9] Haoyi Zhu, Honghui Yang, Yating Wang, Jiange Yang, Limin Wang, and Tong He.
+SPA: 3D
+spatial-awareness enables effective embodied representation. In International Conference on Learning
+Representations, 2025.
+[10] Shuai Bai, Yuxuan Cai, Ruizhe Chen, Keqin Chen, Xionghui Chen, et al. Qwen3-VL technical report.
+arXiv preprint arXiv:2511.21631, 2025.
+[11] Yingdong Hu, Renhao Wang, Li Erran Li, and Yang Gao. For pre-trained vision models in motor
+control, not all policy learning methods are created equal. In International Conference on Machine
+Learning, pages 13628–13651. PMLR, 2023.
+[12] Sudeep Dasari, Mohan Kumar Srirama, Unnat Jain, and Abhinav Gupta. An unbiased look at datasets
+for visuo-motor pre-training. In Proceedings of the IEEE/CVF International Conference on Computer
+Vision, pages 1183–1198, 2023.
+[13] Kaylee Burns, Zach Witzel, Jubayer Ibn Hamid, Tianhe Yu, Chelsea Finn, and Karol Hausman.
+What makes pre-trained visual representations successful for robust manipulation? arXiv preprint
+arXiv:2312.12444, 2023.
+[14] Jinghuan Shang, Karl Schmeckpeper, Brandon B May, Maria Vittoria Minniti, Tarik Kelestemur, David
+Watkins, and Laura Herlant. Theia: Distilling diverse vision foundation models for robot learning. In
+Conference on Robot Learning. PMLR, 2024.
+12
+
+
+[15] Jiahua Dong, Yunze Man, Pavel Tokmakov, and Yu-Xiong Wang. Capturing visual environment
+structure correlates with control performance. In International Conference on Learning Representations,
+2026.
+[16] Moo Jin Kim, Karl Pertsch, Siddharth Karamcheti, Ted Xiao, Ashwin Balakrishna, Suraj Nair, Rafael
+Rafailov, Ethan Foster, Grace Lam, Pannag Sanketi, et al. OpenVLA: An open-source vision-language-
+action model. In Conference on Robot Learning. PMLR, 2024.
+[17] Kevin Black, Noah Brown, Danny Driess, Adnan Esmail, Michael Equi, Chelsea Finn, Niccolo Fusai,
+Lachy Groom, Karol Hausman, Brian Ichter, et al. 𝜋0: A vision-language-action flow model for general
+robot control. arXiv preprint arXiv:2410.24164, 2024.
+[18] Gaoyue Zhou, Zichen Jeff Cui, Ada Langford, Bowen Tan, Yann LeCun, and Lerrel Pinto. Patch policy:
+Efficient embodied control via dense visual representations. arXiv preprint arXiv:2607.18236, 2026.
+[19] Nikolaos Tsagkas, Andreas Sochopoulos, Duolikun Danier, Sethu Vijayakumar, Alexandros Kouris,
+Oisin Mac Aodha, and Chris Xiaoxuan Lu. Attentive feature aggregation or: How policies learn to stop
+worrying about robustness and attend to task-relevant visual cues. arXiv preprint arXiv:2511.10762,
+2025.
+[20] Tony Z Zhao, Vikash Kumar, Sergey Levine, and Chelsea Finn. Learning fine-grained bimanual
+manipulation with low-cost hardware. In Robotics: Science and Systems, 2023.
+[21] Zipeng Fu, Tony Z Zhao, and Chelsea Finn. Mobile ALOHA: Learning bimanual mobile manipulation
+with low-cost whole-body teleoperation. In Conference on Robot Learning. PMLR, 2024.
+[22] Tianxing Chen, Zanxin Chen, Baijun Chen, Zijian Cai, Yibin Liu, et al. RoboTwin 2.0: A scalable data
+generator and benchmark with strong domain randomization for robust bimanual robotic manipulation.
+arXiv preprint arXiv:2506.18088, 2025.
+[23] Cheng Chi, Zhenjia Xu, Chuer Pan, Eric Cousineau, Benjamin Burchfiel, Siyuan Feng, Russ Tedrake,
+and Shuran Song. Universal manipulation interface: In-the-wild robot teaching without in-the-wild
+robots. In Robotics: Science and Systems, 2024.
+[24] William Peebles and Saining Xie. Scalable diffusion models with transformers. In Proceedings of the
+IEEE/CVF International Conference on Computer Vision, pages 4195–4205, 2023.
+[25] Johan Bjorck, Fernando Castañeda, Nikita Cherniadev, Xingye Da, Runyu Ding, Linxi Fan, Yu Fang,
+Dieter Fox, Fengyuan Hu, Spencer Huang, et al. GR00T N1: An open foundation model for generalist
+humanoid robots. arXiv preprint arXiv:2503.14734, 2025.
+[26] Soroush Nasiriany, Abhiram Maddukuri, Lance Zhang, Adeet Parikh, Aaron Lo, Abhishek Joshi, Ajay
+Mandlekar, and Yuke Zhu. RoboCasa: Large-scale simulation of everyday tasks for generalist robots.
+In Robotics: Science and Systems, 2024.
+[27] Siddharth Karamcheti, Suraj Nair, Annie S Chen, Thomas Kollar, Chelsea Finn, Dorsa Sadigh, and
+Percy Liang. Language-driven representation learning for robotics. In Robotics: Science and Systems,
+2023.
+[28] Greg Heinrich, Mike Ranzinger, Hongxu Yin, Yao Lu, Jan Kautz, Andrew Tao, Bryan Catanzaro, and
+Pavlo Molchanov. RADIOv2.5: Improved baselines for agglomerative vision foundation models. In
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, 2025.
+[29] Mike Ranzinger, Greg Heinrich, Collin McCarthy, Jan Kautz, Andrew Tao, Bryan Catanzaro, and Pavlo
+Molchanov. C-RADIOv4 (tech report). arXiv preprint arXiv:2601.17237, 2026.
+13
+
+
+[30] Yijing Zhou, Qiwei Liang, Sitong Zhuang, Jiaxi Li, Xianpeng Wang, Boyang Cai, Yunyang Mo, and
+Renjing Xu. Action-effect memory pretraining for robot manipulation. arXiv preprint arXiv:2606.12499,
+2026.
+[31] Qiwei Liang, Boyang Cai, Minghao Lai, Sitong Zhuang, Tao Lin, Yan Qin, Yixuan Ye, Jiaming
+Liang, and Renjing Xu. Bootstrap dynamic-aware 3D visual representation for scalable robot learning.
+In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pages
+13419–13429, 2026.
+[32] Ya Jing, Xuelin Zhu, Xingbin Liu, Qie Sima, Taozheng Yang, Yunhai Feng, and Tao Kong. Exploring
+visual pre-training for robot manipulation: Datasets, models and methods. In IEEE/RSJ International
+Conference on Intelligent Robots and Systems (IROS), 2023.
+[33] Zhenyu Jiang, Yuqi Xie, Kevin Lin, Zhenjia Xu, Weikang Wan, Ajay Mandlekar, Linxi Fan, and Yuke
+Zhu. DexMimicGen: Automated data generation for bimanual dexterous manipulation via imitation
+learning. In IEEE International Conference on Robotics and Automation (ICRA), 2025.
+[34] Qiwei Liang, Boyang Cai, Rongyi He, Hui Li, Tao Teng, Haihan Duan, Changxin Huang, and Runhao
+Zeng. Whole-body coordination for dynamic object grasping with legged manipulators. arXiv preprint
+arXiv:2508.08328, 2025.
+[35] Qiwei Liang, Guangyu Chen, Shaolong Zhu, Zikuan Xiao, Jinxuan Lu, Yifan Xie, Renjing Xu, Wenbo
+Ding, and Tianxing Chen. MM-ABC: Towards generalist mobile manipulation via seeing, coordinating
+and imagining. arXiv preprint arXiv:2609.35652, 2026.
+[36] Anthony Brohan, Noah Brown, Justice Carbajal, Yevgen Chebotar, Joseph Dabis, Chelsea Finn,
+Keerthana Gopalakrishnan, Karol Hausman, Alex Herzog, Jasmine Hsu, et al. RT-1: Robotics
+transformer for real-world control at scale. In Robotics: Science and Systems, 2023.
+[37] Octo Model Team, Dibya Ghosh, Homer Walke, Karl Pertsch, Kevin Black, Oier Mees, Sudeep Dasari,
+Joey Hejna, Tobias Kreiman, Charles Xu, et al. Octo: An open-source generalist robot policy. In
+Robotics: Science and Systems, 2024.
+[38] Anthony Brohan, Noah Brown, Justice Carbajal, Yevgen Chebotar, Xi Chen, Krzysztof Choromanski,
+Tianli Ding, Danny Driess, Avinava Dubey, Chelsea Finn, et al. RT-2: Vision-language-action models
+transfer web knowledge to robotic control. arXiv preprint arXiv:2307.15818, 2023.
+[39] Physical Intelligence, Kevin Black, Noah Brown, James Darpinian, Karan Dhabalia, Danny Driess,
+Adnan Esmail, Michael Equi, Chelsea Finn, Niccolo Fusai, et al. 𝜋0.5: A vision-language-action model
+with open-world generalization. arXiv preprint arXiv:2504.16054, 2025.
+[40] Seonghyeon Ye, Yunhao Ge, Kaiyuan Zheng, Shenyuan Gao, Sihyun Yu, George Kurian, Suneel
+Indupuru, You Liang Tan, Chuning Zhu, Jiannan Xiang, et al. World action models are zero-shot
+policies. arXiv preprint arXiv:2602.15922, 2026.
+[41] Tianyuan Yuan, Zibin Dong, Yicheng Liu, and Hang Zhao. Fast-WAM: Do world action models need
+test-time future imagination? arXiv preprint arXiv:2603.16666, 2026.
+[42] Zhengtu Liang, Qiwei Liang, Tao Lin, Shihang Weng, Boyang Cai, Xiangyu Chen, Yikeng Chen,
+Jiaming Liang, Bohan Tan, Yu Yan, et al. UniVEP: Unifying velocity and endpoint prediction for robot
+manipulation. arXiv preprint arXiv:2611.26103, 2026.
+[43] Xin Wen, Bingchen Zhao, Yilun Chen, Jiangmiao Pang, and Xiaojuan Qi. A data-centric revisit of
+pre-trained vision models for robot learning. In Proceedings of the IEEE/CVF Conference on Computer
+Vision and Pattern Recognition, 2025.
+14
+
+
+[44] Yixiao Wang, Mingxiao Huo, Zhixuan Liang, Yushi Du, Lingfeng Sun, Haotian Lin, Jinghuan
+Shang, Chensheng Peng, Mohit Bansal, Mingyu Ding, and Masayoshi Tomizuka. VER: Vision
+expert transformer for robot learning via foundation distillation and dynamic routing. In International
+Conference on Learning Representations, 2026.
+[45] Quentin Garrido, Randall Balestriero, Laurent Najman, and Yann LeCun. RankMe: Assessing the
+downstream performance of pretrained self-supervised representations by their rank. In International
+Conference on Machine Learning, pages 10929–10974. PMLR, 2023.
+[46] Nikolaos Tsagkas, Andreas Sochopoulos, Duolikun Danier, Chris Xiaoxuan Lu, and Oisin Mac Aodha.
+The temporal trap: Entanglement in pre-trained visual representations for visuomotor policy learning.
+In IEEE International Conference on Robotics and Automation (ICRA), 2026.
+[47] Nilaksh, Saurav Jha, Artem Zholus, and Sarath Chandar. Reconstruction or semantics? What makes a
+latent space useful for robotic world models. arXiv preprint arXiv:2605.06388, 2026.
+[48] Baiqiao Yin, Zhongang Cai, Ruisi Wang, Qiwei Liang, Lei Yang, and Ziwei Liu. Probing spatial state
+representations in visual foundation models. arXiv preprint arXiv:2610.40636, 2026.
+[49] Zizhao Yuan, Zhengtu Liang, Taowen Wang, Qiwei Liang, Yichi Wang, Yunheng Wang, Yuetong
+Fang, Lusong Li, Zecui Zeng, and Renjing Xu. Not all actions are equal: Rethinking conditioning for
+dexterous world model. arXiv preprint arXiv:2606.27325, 2026.
+[50] Boyang Cai, Qiwei Liang, Jiawei Li, Shihang Weng, Zhaoxin Zhang, Tao Lin, Xiangyu Chen, Wenjie
+Zhang, Jiaqi Mao, Weisheng Xu, Bin Yang, Jiaming Liang, Junhao Cai, and Renjing Xu. Beyond
+viewpoint generalization: What multi-view demonstrations offer and how to synthesize them for robot
+manipulation? arXiv preprint arXiv:2603.26757, 2026.
+[51] Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas
+Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, et al. An image
+is worth 16x16 words: Transformers for image recognition at scale. In International Conference on
+Learning Representations, 2021.
+[52] Oriane Siméoni, Huy V Vo, Maximilian Seitzer, Federico Baldassarre, Maxime Oquab, Cijo Jose, Vasil
+Khalidov, Marc Szafraniec, Seungeun Yi, Michaël Ramamonjisoa, et al. DINOv3. arXiv preprint
+arXiv:2508.10104, 2025.
+[53] Lorenzo Mur-Labadia, Matthew Muckley, Amir Bar, Mido Assran, Koustuv Sinha, Michael Rabbat,
+Yann LeCun, Nicolas Ballas, Adrien Bardes, et al. V-JEPA 2.1: Unlocking dense features in video
+self-supervised learning. arXiv preprint arXiv:2603.14482, 2026.
+[54] Jianyuan Wang, Minghao Chen, Shangzhan Zhang, Nikita Karaev, Johannes Schönberger, Patrick
+Labatut, Piotr Bojanowski, David Novotny, Andrea Vedaldi, and Christian Rupprecht. VGGT-Ω.
+In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pages
+21486–21499, 2026.
+[55] Zelin Fu, Bin Tan, Changjiang Sun, Shaohui Liu, Kecheng Zheng, Yinghao Xu, Xing Zhu, Yujun Shen,
+and Nan Xue. Vision pretraining for dense spatial perception. arXiv preprint arXiv:2607.05247, 2026.
+[56] Xiaohua Zhai, Basil Mustafa, Alexander Kolesnikov, and Lucas Beyer. Sigmoid loss for language
+image pre-training. In Proceedings of the IEEE/CVF International Conference on Computer Vision,
+pages 11975–11986, 2023.
+[57] Michael Tschannen, Alexey Gritsenko, Xiao Wang, Muhammad Ferjad Naeem, Ibrahim Alabdulmohsin,
+Nikhil Parthasarathy, Talfan Evans, Lucas Beyer, Ye Xia, Basil Mustafa, et al. SigLIP 2: Multilingual
+vision-language encoders with improved semantic understanding, localization, and dense features.
+arXiv preprint arXiv:2502.14786, 2025.
+15
+
+
+[58] Zhe Chen, Jiannan Wu, Wenhai Wang, Weijie Su, Guo Chen, Sen Xing, Muyan Zhong, Qinglong
+Zhang, Xizhou Zhu, Lewei Lu, et al. InternVL: Scaling up vision foundation models and aligning for
+generic visual-linguistic tasks. In Proceedings of the IEEE/CVF Conference on Computer Vision and
+Pattern Recognition, pages 24185–24198, 2024.
+[59] Hanxun Yu, Xuan Qu, Yuxin Wang, Jianke Zhu, and Lei Ke. Unlocking dense metric depth estimation
+in VLMs. arXiv preprint arXiv:2605.15876, 2026.
+[60] Xiaomi Robotics Team, Jun Guo, Piaopiao Jin, Jason Li, Peiyan Li, Yingyan Li, Futeng Liu, Wanli
+Peng, Optimus Qin, Yifei Su, et al. Xiaomi-Robotics-1: Scaling vision-language-action models with
+over 100K hours of real-world trajectories. arXiv preprint arXiv:2607.15330, 2026.
+[61] Yaron Lipman, Ricky TQ Chen, Heli Ben-Hamu, Maximilian Nickel, and Matt Le. Flow matching for
+generative modeling. In International Conference on Learning Representations, 2023.
+16
+
+
+Appendix
+The appendix documents the benchmark and policy interfaces, provides the paired and ablation stud-
+ies from the main text, and lists the task-level success rates.
+Training-seed variation and evaluation
+deviations are reported separately.
+A Benchmark and Policy Details
+RoboCasa-GR1 uses a humanoid head camera and 29 action coordinates (two 7-DoF arms, two 6-DoF hands,
+and three waist coordinates). RoboTwin uses head and wrist cameras with 14 absolute joint targets (two
+6-DoF arms and two grippers). Actions are min–max normalized. The loader stores views at 224 × 224
+before encoder-specific preprocessing. Demonstration sweeps select complete episodes with a fixed subset
+seed; the smaller subsets are nested in the larger ones. Table 23 lists all tasks.
+Table 6. Encoder families and primary references. Colors group the default encoders in Table 3.
+Family
+Encoders
+Geometry
+VGGT-Ω, LingBot-Vision, SPA [9, 54, 55]
+Self-supervised
+DINOv2, DINOv3, MAE, V-JEPA 2.1 [6, 7, 52, 53]
+VLM-derived
+Xiaomi-Robotics-1, DepthVLM, Qwen3-VL [10, 59, 60]
+Vision–language
+SigLIP2, InternViT, SigLIP, CLIP [8, 56–58]
+Robot-oriented
+VC-1, Voltron [2, 27]
+Multi-teacher
+Theia, C-RADIOv4, RADIOv2.5 [14, 28, 29]
+Supervised
+ViT [51]
+A.1 Policy architecture
+Figure 3 shows the shared policy; the context interfaces and flow objective are specified below.
+Context and attention.
+Context 𝐶𝑡concatenates all views’ patch tokens at native width 𝐷enc. In MT,
+task instructions are encoded as frozen CLIP ViT-B/32 text features, batch-padded and projected to 𝐷enc.
+The VLMs and LingBot-Vision project image features and the 77 text tokens of frozen CLIP ViT-B/16 to
+width 1,024. These interfaces retain text in ST, with a constant task instruction. Image tokens precede
+the instruction in the VLM chat template and do not encode it.
+The DiT has width 768, 16 blocks, 12 attention heads, and dropout 0.2. Its input sequence 𝐻𝑡contains
+32 learned queries and 16 embedded action tokens with learned positions. Eight blocks cross-attend to
+visual/text context, alternating with eight self-attention blocks:
+CrossAttn(𝐻𝑡, 𝐶𝑡) = softmax
+
+(𝐻𝑡𝑊𝑄)(𝐶𝑡𝑊𝐾)⊤/
+√
+64
+
+𝐶𝑡𝑊𝑉.
+(2)
+Parameter counts, in millions for the action head and all downstream weights, are 138.669/139.063
+for thirteen 768-width encoders, 142.231/142.756 for InternViT, and 145.793/146.449 for C-RADIOv4.
+VGGT-Ω uses 156.478/156.478. Qwen3-VL, Xiaomi, and DepthVLM use 142.690/145.838, and LingBot-
+Vision uses 142.690/144.265. Counts exclude pretrained encoders but include the allocated state MLP
+even when unused; downstream adds external projections. Thirteen heads match exactly; the largest
+has 12.8% more parameters.
+Compute varies (Table 3).
+Flow matching.
+For normalized action chunk 𝐴𝑡, draw 𝜖∼N (0, 𝐼) and 𝑏∼Beta(1.5, 1), set 𝜏=
+(𝑠−min(𝑏, 𝑠))/𝑠with 𝑠= 0.999, and interpolate 𝐴𝜏= (1 −𝜏)𝜖+ 𝜏𝐴𝑡. The objective is
+Lact = E
+
+∥𝑣𝜃(𝐴𝜏, ⌊1000𝜏⌋, 𝐶𝑡) −(𝐴𝑡−𝜖)∥2
+𝐹/(16𝑑𝑎)
+
+.
+(3)
+17
+
+
+Each example receives eight noise/time draws per update. Inference starts from Gaussian noise and integrates
+𝑣𝜃for 15 Euler steps on RoboCasa or 10 on RoboTwin. RoboCasa executes the first 12 predicted actions
+before replanning, with a maximum of 720 control steps per episode. RoboTwin executes all 16, without
+temporal ensembling, in randomized scenes with unseen instructions.
+A.2 Optimization and evaluation
+Table 7.
+Training configuration.
+Encoder learning rate applies during fine-tuning.
+Other trainable param-
+eters include the context projections.
+Setting
+RoboCasa ST
+RoboCasa MT
+RoboTwin MT
+Tasks per policy
+1
+12
+12
+Demonstrations per task
+1,000
+1,000
+500
+Optimizer steps
+100k
+100k
+100k
+Global batch / GPUs / per-GPU batch
+128 / 4 / 32
+128 / 4 / 32
+128 / 4 / 32
+Gradient accumulation
+None
+None
+None
+Action head learning rate
+10−4
+10−4
+10−4
+Encoder learning rate (FT)
+10−5
+10−5
+10−5
+Other trainable parameters LR
+10−4
+3 × 10−5
+10−4
+Warmup steps
+3,000
+3,000
+5,000
+Learning-rate floor
+5 × 10−8
+5 × 10−8
+5 × 10−7
+Scheduler
+Linear warmup + cosine decay
+Optimizer
+AdamW, 𝛽= (0.9, 0.95), 𝜖= 10−8
+Weight decay / clipping / dropout
+10−8 / 1.0 / 0.2
+Precision
+BF16
+BF16
+BF16
+Training uses gradient checkpointing and DeepSpeed ZeRO stage 2. Frozen runs update the action head
+and projections; FT also updates the visual encoder at one tenth of the head’s learning rate. Text encoders
+remain frozen. Covering twelve tasks uses twelve ST policies or one MT policy, so equal 100k-step
+budgets per policy correspond to 1.2M versus 100k total updates.
+The final checkpoint is evaluated with three evaluation seeds and 50 rollouts per task per seed. Task success
+is the mean across seeds, with the exported evaluation standard deviation 𝜎𝑘. Suite success averages the 𝐾
+task scores. Main and scale tables propagate deviations as
+√︃Í
+𝑘𝜎2
+𝑘/𝐾, with 𝐾= 12 or 4 for the ST data
+sweep. This assumes independent task errors and describes evaluation variability. State, resolution, and
+query ablations retain their supplied suite deviations, which are not all task-propagated. The independent
+three-training-seed experiment reports a population SD across training runs (Table 14).
+B Encoder Inventory and Extraction Interfaces
+Tables 8 and 9 document the pretraining and extraction interface of each default checkpoint. Table 10
+lists the model-scale variants.
+Each encoder receives its prescribed image normalization once, and
+the action head reads the resulting spatial tokens.
+Preprocessing.
+Default views are stored and loaded at 224 × 224 and then passed through the encoder’s
+own preprocessing. Hugging Face image processors are used for DINOv2, DINOv3, CLIP, SigLIP, SigLIP2,
+MAE, and ViT. DINOv2’s processor resizes the short side to 256 and center-crops 224, so its policy sees the
+central 87.5% of each view; CLIP resizes and center-crops to 224, which leaves a 224 × 224 view unchanged;
+the others resize to 224 × 224. DINOv2, DINOv3, and MAE use ImageNet statistics, CLIP its own, and
+SigLIP, SigLIP2, and ViT a mean and standard deviation of 0.5. InternViT and VC-1 resize to 224 × 224
+with ImageNet statistics, and V-JEPA 2.1 resizes to 384 × 384 with ImageNet statistics and runs in image
+mode with one temporal slot. VGGT-Ω, SPA, RADIOv2.5, and C-RADIOv4 receive [0, 1] images and apply
+18
+
+
+Table 8. Pretraining data, amount, and objective. “Native” is the resolution at which the released checkpoint was
+trained; “multi-res.” marks training over several resolutions. Encoder names are colored by family as in Table 3.
+Encoder
+Pretraining data and amount
+Objective
+Native
+VGGT-Ω
+About 4M labeled multi-view sequences (about 3M from 30+
+public and internal datasets, 0.8M annotated Internet videos)
+and 18M unlabeled videos
+Camera, depth, and point-map prediction with
+one dense head, then teacher–student
+self-distillation on unlabeled video;
+DINOv3-initialized ViT
+512
+LingBot-Vision
+About 161M images curated from a pool of about 2B web
+images; the ViT-L is distilled from a 1.1B ViT-g/16 teacher
+Masked boundary modeling on
+DINO/iBOT-style self-distillation, with Gram
+anchoring and high-resolution adaptation
+Multi-res.
+SPA
+3.8M frames from ScanNet, ScanNet++, Hypersim, ADT,
+S3DIS, and DROID
+Masked (50%) multi-view volume rendering of
+RGB, depth, and semantics; initialized from
+ImageNet MAE
+224
+DINOv2
+LVD-142M, 142M curated images; Base distilled from
+ViT-g/14
+DINO and iBOT self-distillation with KoLeo
+regularization
+224, 518
+DINOv3
+LVD-1689M, about 1.7B curated images; Base distilled from
+a 7B teacher
+DINO and iBOT self-distillation; teacher trained
+with Gram anchoring and high-resolution
+adaptation
+Multi-res.
+MAE
+ImageNet-1K, 1.28M images
+Masked (75%) pixel reconstruction
+224
+V-JEPA 2.1
+VisionMix-163M: LVD-142M images with SSv2 (168K),
+Kinetics (733K), HowTo100M (1.1M), and YT-1B (19M)
+videos; Base distilled from a 2B ViT-G
+Masked latent prediction with a dense loss on
+visible and masked tokens and deep
+self-supervision
+384
+Xiaomi-Robotics-
+1
+Qwen3-VL initialization; over 100K hours of real-world
+manipulation trajectories for pretraining and over 10K hours
+of cross-embodiment data for post-training
+Vision–language–action training of a
+mixture-of-transformers VLM with a
+flow-matching action DiT
+Dynamic
+DepthVLM
+Qwen3-VL-4B initialization; 4.4M samples from eight
+metric-depth datasets (ScanNet++, Taskonomy, HM3D,
+Matterport3D, Argoverse2, Waymo, DDAD, nuScenes)
+Language and dense metric-depth losses through
+a 34M DPT head; head-only, then end-to-end
+training
+Dynamic
+Qwen3-VL
+About 2.2T multimodal pretraining tokens (67B alignment,
+two stages of about 1T, 100B long context), then instruction
+post-training
+Multimodal next-token prediction;
+SigLIP2-Large vision encoder with DeepStack
+injection into the LLM
+Dynamic
+SigLIP2
+WebLI, 10B images with 12B alt-texts in 109 languages
+Sigmoid image–text loss with a captioning
+decoder, self-distillation, and masked prediction
+224
+InternViT
+Distilled from InternViT-6B, then trained inside InternVL;
+the V2.5 release adds incremental training on OCR, chart,
+math, and document data
+Cosine feature distillation, then next-token
+prediction through an LLM
+448,
+dynamic
+SigLIP
+English image–text pairs of WebLI
+Sigmoid image–text loss
+224
+CLIP
+WIT, 400M image–text pairs
+Contrastive image–text loss
+224
+VC-1
+Ego4D, manipulation and navigation video, and ImageNet;
+5.6M frames
+Masked autoencoding
+224
+Voltron
+Something-Something-v2 with captions, about 168K clips at
+five frames per clip and epoch
+Language-conditioned masked autoencoding of
+single frames (V-Cond)
+224
+Theia
+ImageNet-1K, 1.28M images; trained from scratch
+Feature distillation from CLIP, DINOv2, and ViT
+through shallow CNN translators
+224
+C-RADIOv4
+About 700M images with commercially permissive licenses
+Multi-teacher distillation from SigLIP2-g,
+DINOv3-7B, and SAM3
+Multi-res.
+RADIOv2.5
+DataComp-1B images
+Multi-teacher distillation from DFN CLIP,
+SigLIP, DINOv2-g, and SAM-H
+Multi-res.
+ViT
+ImageNet-21K (14M images, 21,843 classes), then
+ImageNet-1K
+Supervised classification
+224
+their own internal normalization, Theia receives 8-bit images and normalizes them internally, and Voltron
+uses its released transform. LingBot-Vision is resized bilinearly to 224 × 224 with ImageNet statistics. The
+three VLMs use the Qwen3-VL image processor, which enlarges a 224 × 224 view to 256 × 256 to meet its
+minimum pixel count; 16-pixel patches and 2 × 2 merging then yield 64 image tokens per view.
+Token extraction.
+Each encoder receives its prescribed image normalization exactly once. Class and
+register tokens are removed and only patch tokens are kept. VGGT-Ω contributes the patch tokens of its last
+aggregator block and drops the camera and register tokens. On RoboTwin it receives the head view and the
+two wrist views together as one three-frame sequence, so its global-attention layers exchange information
+across the views before the policy reads the 3 × 196 tokens; every other encoder processes each view on its
+own. Its diagnostics, like all others, read only the head camera. MAE runs with a masking ratio of 0; the
+released implementation still permutes the order of its output tokens, which leaves the policy unaffected
+19
+
+
+Table 9. Checkpoints and token interfaces of the default encoders. Input is the resolution at which the encoder
+sees each view, 𝑁the number of patch tokens per view, and 𝐷the token width. All data are stored at 224 × 224;
+the preprocessing that produces each input is described in the text.
+Encoder
+Checkpoint
+Backbone
+Params
+Input
+𝑁
+𝐷
+VGGT-Ω
+facebook/VGGT-Omega (vggt_omega_1b_512)
+Aggregator, patch 16
+1B
+2242
+196
+2,048𝑎
+LingBot-Vision
+robbyant/lingbot-vision-vit-large
+ViT-L/16
+300M
+2242
+196
+1,024𝑏
+SPA
+HaoyiZhu/SPA (spa_vit_base_patch16)
+ViT-B/16
+86M
+2242
+196
+768
+DINOv2
+facebook/dinov2-base
+ViT-B/14
+86M
+2242 crop
+256
+768
+DINOv3
+facebook/
+dinov3-vitb16-pretrain-lvd1689m
+ViT-B/16, 4 registers
+86M
+2242
+196
+768
+MAE
+facebook/vit-mae-base
+ViT-B/16
+86M
+2242
+196
+768
+V-JEPA 2.1
+vjepa2_1_vit_base_384 (torch hub)
+ViT-B/16
+80M
+3842
+576
+768
+Xiaomi-Robotics-1
+XiaomiRobotics/Xiaomi-Robotics-1-5B,
+VLM part
+Qwen3-VL
+4.4B
+2562
+64
+1,024𝑏
+DepthVLM
+JonnyYu828/DepthVLM-4B
+Qwen3-VL
+4B
+2562
+64
+1,024𝑏
+Qwen3-VL
+Qwen/Qwen3-VL-4B-Instruct
+Qwen3-VL
+4B
+2562
+64
+1,024𝑏
+SigLIP2
+google/siglip2-base-patch16-224
+ViT-B/16
+86M
+2242
+196
+768
+InternViT
+OpenGVLab/InternViT-300M-448px-V2_5
+ViT, patch 14
+300M
+2242
+256
+1,024
+SigLIP
+google/siglip-base-patch16-224
+ViT-B/16
+86M
+2242
+196
+768
+CLIP
+openai/clip-vit-base-patch16
+ViT-B/16
+86M
+2242
+196
+768
+VC-1
+facebook/vc1-base
+ViT-B/16
+86M
+2242
+196
+768
+Voltron
+v-cond-base (voltron-robotics)
+ViT-B/16
+86M
+2242
+196
+768
+Theia
+theaiinstitute/
+theia-base-patch16-224-cdiv
+DeiT-B/16
+86M
+2242
+196
+768
+C-RADIOv4
+c-radio_v4-h (NVlabs/RADIO hub)
+ViT-H/16
+631M
+2242
+196
+1,280
+RADIOv2.5
+radio_v2.5-b (NVlabs/RADIO hub)
+ViT-B/16
+98M
+2242
+196
+768
+ViT
+google/vit-base-patch16-224
+ViT-B/16
+86M
+2242
+196
+768
+𝑎Concatenation of the frame-attention and global-attention outputs of the last aggregator block. 𝑏Projected to 1,024 channels by the
+VLM-style interface described below; VLM parameters include the language model and the vision tower.
+because its cross-attention does not depend on token order, but makes MAE’s position-dependent statistics
+meaningless. LingBot-Vision contributes its final normalized patch tokens. For the VLMs, the images of all
+views are placed in the chat template before the instruction, the model runs once, and the hidden states at the
+image-token positions of the chosen layer are kept, the final layer unless stated otherwise. The language model
+attends causally and the image tokens precede the instruction, so these hidden states do not depend on the
+instruction; image tokens of a later view can attend to those of earlier views. The instruction reaches the policy
+only through the CLIP text tokens described in Appendix A, which enter the context after the image tokens.
+Table 10. Checkpoints of the model-scale study (Section C.3). Every row is read through the same interface
+as its default checkpoint in Table 9; the default rows are repeated for reference.
+Family
+Size
+Checkpoint
+Backbone
+Params
+𝑁
+𝐷
+DINOv2
+S
+facebook/dinov2-small
+ViT-S/14
+21M
+256
+384
+B (default)
+facebook/dinov2-base
+ViT-B/14
+86M
+256
+768
+L
+facebook/dinov2-large
+ViT-L/14
+300M
+256
+1,024
+g
+facebook/dinov2-giant
+ViT-g/14
+1.1B
+256
+1,536
+DINOv3
+S
+facebook/dinov3-vits16-pretrain-lvd1689m
+ViT-S/16
+21M
+196
+384
+B (default)
+facebook/dinov3-vitb16-pretrain-lvd1689m
+ViT-B/16
+86M
+196
+768
+L
+facebook/dinov3-vitl16-pretrain-lvd1689m
+ViT-L/16
+300M
+196
+1,024
+H+
+facebook/dinov3-vith16plus-pretrain-lvd1689m
+ViT-H+/16
+840M
+196
+1,280
+V-JEPA 2.1
+B (default)
+vjepa2_1_vit_base_384
+ViT-B/16
+80M
+576
+768
+L
+vjepa2_1_vit_large_384
+ViT-L/16
+300M
+576
+1,024
+g
+vjepa2_1_vit_giant_384
+ViT-g/16
+1B
+576
+1,408
+VC-1
+B (default)
+facebook/vc1-base
+ViT-B/16
+86M
+196
+768
+L
+facebook/vc1-large
+ViT-L/16
+307M
+196
+1,024
+20
+
+
+C Extended Closed-Loop Results
+This appendix provides the paired results and additional controls behind Section 4.
+The complete
+task-level values appear in Appendix F.
+C.1 Frozen encoders and task sharing
+Table 3 compares the 20 default encoders under multi-task training. Table 11 adds the matched single-task
+runs on RoboCasa. The 17 matched encoders average 26.94% under ST and 23.62% under MT. The ratio of
+these averages is 87.7%; averaging the individual retention ratios gives 87.8%. Both summarize the same
+broad pattern: the reduction in total training steps is much larger than the loss in success.
+Each policy receives 100k updates at global batch 128. Covering twelve tasks therefore uses 1.2M optimizer
+steps for the collection of ST policies and 100k for one MT policy. The twelvefold ratio describes total
+optimizer steps; MT additionally conditions on language. Table 7 gives the learning rates for each regime.
+Table 11. Matched RoboCasa ST and MT results. Both use 1,000 demonstrations per task. ST comprises twelve inde-
+pendently trained policies, MT one shared policy. Δ is MT minus ST in percentage points; retained success is 100 MT/ST.
+Encoder
+ST
+MT
+𝚫
+Retained (%)
+VGGT-Ω
+43.17 ±1.42
+35.39 ±1.33
+-7.78
+82.0
+LingBot-Vision
+31.78 ±0.92
+29.39 ±1.49
+-2.39
+92.5
+DINOv2
+37.33 ±0.94
+32.28 ±1.45
+-5.05
+86.5
+DINOv3
+32.50 ±1.41
+31.22 ±1.34
+-1.28
+96.1
+MAE
+22.89 ±1.13
+25.28 ±1.49
++2.39
+110.4
+V-JEPA 2.1
+23.39 ±1.04
+18.67 ±1.22
+-4.72
+79.8
+Xiaomi-Robotics-1
+24.83 ±1.55
+25.17 ±1.70
++0.34
+101.4
+DepthVLM
+28.22 ±1.57
+18.50 ±1.08
+-9.72
+65.6
+Qwen3-VL
+23.78 ±1.69
+19.56 ±1.19
+-4.22
+82.3
+SigLIP2
+29.78 ±1.60
+29.11 ±1.53
+-0.67
+97.8
+InternViT
+22.39 ±1.05
+20.11 ±0.97
+-2.28
+89.8
+SigLIP
+16.61 ±1.12
+13.67 ±1.28
+-2.94
+82.3
+CLIP
+15.17 ±1.52
+11.44 ±0.98
+-3.73
+75.4
+VC-1
+32.61 ±1.16
+28.44 ±1.42
+-4.17
+87.2
+Voltron
+31.94 ±1.25
+24.83 ±1.01
+-7.11
+77.7
+Theia
+27.00 ±1.29
+24.83 ±1.08
+-2.17
+92.0
+ViT
+14.67 ±1.09
+13.67 ±1.23
+-1.00
+93.2
+C.2 Patch tokens and fine-tuning
+The mean-pooling control uses frozen DINOv2 and DINOv3 on RoboCasa MT, replacing 256 and 196
+tokens per view, respectively, with one mean token. All other policy and optimization settings are held
+fixed. Figure 4 reports suite means; Figure 9 shows the individual tasks. Pooling lowers success in 23 of
+the 24 pairs. This control evaluates mean pooling rather than learned compression.
+Table 12 gives the five frozen–fine-tuned pairs on each benchmark. The Spearman correlation between
+frozen and adapted success is 0.70 on RoboCasa and 1.00 on RoboTwin. Fine-tuning uses an encoder
+learning rate equal to one tenth of the action-head rate.
+C.3 Demonstration and model scale
+The multi-task sweeps in Figure 5 average all twelve tasks. The RoboCasa ST sweep averages only C1–C4
+(Figure 10), so comparisons between ST and MT use those four tasks on both sides. Smaller demonstration
+sets are nested subsets of the larger sets. The full-data endpoints reuse the corresponding main experiments.
+21
+
+
+0
+20
+40
+50
+Patch-token success (%)
+0
+20
+40
+50
+Mean-token success (%)
+DINOv2
+DINOv3
+Figure 9. Spatial pooling on individual RoboCasa tasks. Each point is one encoder–task pair. Points below
+the diagonal lose success when patch tokens are replaced by their mean.
+Table 12. Frozen and fine-tuned success. Δ is the gain in percentage points.
+RoboCasa ST
+RoboTwin MT
+Encoder
+Frozen
+FT
+𝚫
+Frozen
+FT
+𝚫
+VGGT-Ω
+43.17 ±1.42
+50.94 ±1.33
++7.77
+50.00 ±1.33
+76.06 ±1.16
++26.06
+DINOv2
+37.33 ±0.94
+39.72 ±1.74
++2.39
+49.39 ±1.04
+51.61 ±1.29
++2.22
+DINOv3
+32.50 ±1.41
+41.94 ±1.46
++9.44
+30.44 ±1.44
+48.61 ±1.33
++18.17
+VC-1
+32.61 ±1.16
+38.78 ±1.29
++6.17
+25.06 ±1.46
+44.00 ±1.22
++18.94
+SigLIP2
+29.78 ±1.60
+30.89 ±1.30
++1.11
+44.22 ±1.24
+48.72 ±1.41
++4.50
+50
+100
+200
+500
+1000
+Demonstrations / task
+0
+20
+40
+60
+Success (%)
+DINOv2
+DINOv3
+SigLIP2
+V-JEPA 2.1
+Figure 10. RoboCasa ST demonstration scaling on C1–C4. Each task has its own policy. The 1,000-demonstration
+endpoint averages the same four tasks from the main ST runs. Error bars propagate the four task deviations.
+The model-size sweep covers DINOv2, DINOv3, V-JEPA 2.1, and VC-1. The nine additional check-
+points and their token interfaces are listed in Table 10; their task-level results appear in Appendix F.
+Default checkpoints are marked by rings in Figure 5.
+C.4 State and image-resolution controls
+The state controls add one token from a two-layer input →768 →768 ReLU MLP. RoboCasa encodes
+29 joint coordinates as 58 sine/cosine features; RoboTwin normalizes 12 joints and retains two gripper
+indicators. DINOv2 and RADIO improve on both suites without reversing order. This pair tests whether
+absent proprioception explains their gap; it cannot establish how state/IDM correlations change across the
+full encoder set. Section 5 correlates diagnostics with the default image-only policies. The resolution
+control resamples stored 224 × 224 images to 320 × 320, increasing DINOv3’s patches from 196 to
+400 per view.
+It adds tokens, not newly captured image detail.
+Despite exceeding DINOv2’s 256
+tokens, RoboTwin success remains 14.78 points lower.
+22
+
+
+Table 13. Input and action-head ablations. Baseline is the corresponding frozen MT policy. Entries preserve
+the exported suite evaluation deviations; these new ablations do not all use the task-error propagation convention
+of the main comparison.
+Δ denotes the change in suite mean.
+Suite
+Encoder
+Change
+Baseline
+Ablated
+𝚫
+RoboCasa
+DINOv2
++ state
+32.28 ±1.45
+35.25 ±2.98
++2.97
+RoboCasa
+RADIOv2.5
++ state
+24.39 ±1.11
+26.17 ±1.20
++1.78
+RoboCasa
+DINOv3
+320 × 320
+31.22 ±1.34
+32.39 ±1.34
++1.17
+RoboCasa
+DINOv2
+No query tokens
+32.28 ±1.45
+27.78 ±2.68
+-4.50
+RoboCasa
+DINOv3
+No query tokens
+31.22 ±1.34
+23.50 ±1.69
+-7.72
+RoboTwin
+DINOv2
++ state
+49.39 ±1.04
+49.78 ±2.04
++0.39
+RoboTwin
+RADIOv2.5
++ state
+31.11 ±1.19
+33.06 ±2.64
++1.95
+RoboTwin
+DINOv3
+320 × 320
+30.44 ±1.44
+34.61 ±2.00
++4.17
+C.5 Learned query tokens in the action head
+The default DiT prepends 32 learned query tokens to the 16 noisy action tokens. These queries supply
+additional latent positions through which self-attention and cross-attention can exchange information;
+the action decoder reads the action-token positions.
+They are part of the action head, distinct from
+class or register tokens produced by an encoder.
+Removing the 32 queries reduces RoboCasa MT success from 32.28% to 27.78% for DINOv2 and from 31.22%
+to 23.50% for DINOv3 (Table 13). Both policies still learn, and DINOv2 remains ahead, but the extra latent po-
+sitions improve success by 4.50 and 7.72 points. The learned queries help the common head use visual context.
+C.6 The extraction layer
+0
+20
+40
+60
+Success (%)
+Qwen3-VL · Casa ST
+Xiaomi · Casa ST
+DepthVLM · Casa ST
+LingBot · Casa ST
+Qwen3-VL · Casa MT
+Xiaomi · Casa MT
+Qwen3-VL · Twin MT
+Xiaomi · Twin MT
+23.8 / 32.7
+24.8 / 33.1
+28.2 / 34.2
+31.8 / 33.1
+19.6 / 30.2
+25.2 / 33.4
+51.4 / 50.7
+53.2 / 52.8
+Final layer
+Layer 16
+Figure 11. Final-layer features versus layer 16. Labels give final-layer / layer-16 success. Six settings use
+RoboCasa, two RoboTwin; LingBot-Vision provides a vision-encoder layer control.
+On RoboCasa ST, layer 16 improves Qwen3-VL by 8.89 points, Xiaomi-Robotics-1 by 8.28, and DepthVLM
+by 5.95.
+The MT gains are 10.66 points for Qwen3-VL and 8.27 for Xiaomi-Robotics-1.
+LingBot-
+Vision gains 1.28 points on RoboCasa ST. On RoboTwin, Qwen3-VL and Xiaomi-Robotics-1 change
+by −0.72 and −0.44 points. The value of an intermediate layer therefore depends on the downstream
+setting; the layer is part of the representation choice.
+23
+
+
+The paired readouts also distinguish information recovery from policy success. On RoboTwin, layer 16
+lowers Qwen3-VL’s IDM error from 0.177 to 0.124 and Xiaomi’s from 0.150 to 0.125; both state errors fall
+as well, without a corresponding success gain. On RoboCasa, Xiaomi’s IDM error instead rises slightly
+(0.158 to 0.168) while MT success gains 8.27 points. A probe’s ordering across default encoders therefore
+need not predict the effect of changing the extraction layer within one encoder.
+C.7 Variation across training seeds
+We repeat RoboCasa MT training for four encoders with seeds 1, 42, and 78 (Table 14).
+All three
+runs give the same ordering: DINOv2, VC-1, RADIOv2.5, then V-JEPA 2.1. Across-training standard
+deviations are 1.74 points for DINOv2, 0.18 for RADIOv2.5, 1.10 for VC-1, and 0.93 for V-JEPA 2.1.
+The tested multi-task policies are thus broadly stable across training seeds: aggregate success changes
+modestly, and the encoder ordering is preserved.
+DINOv2 varies most, from 28.22% to 32.28%, so its single-seed score is best read alongside the three-run
+mean of 29.87%. The table separates training variability from the rollout variability reported elsewhere.
+Table 14.
+Training-seed variation on RoboCasa MT. Each seed column contains its twelve-task mean suc-
+cess, averaged over three evaluation seeds. The last two columns summarize the three training runs; SD is the
+population standard deviation across training seeds.
+Encoder
+Seed 1
+Seed 42
+Seed 78
+Mean
+Training SD
+DINOv2
+28.22
+32.28
+29.11
+29.87
+1.74
+RADIOv2.5
+24.56
+24.39
+24.83
+24.59
+0.18
+VC-1
+25.78
+28.44
+26.78
+27.00
+1.10
+V-JEPA 2.1
+19.94
+18.67
+20.94
+19.85
+0.93
+D Physical-Robot Evaluation
+DINOv2’s lead carries over to three physical manipulation tasks.
+We compare DINOv2, DINOv3,
+and CLIP on a real bimanual platform to test whether their simulation ordering survives changes in
+appearance, sensing, and execution. DINOv2 leads on every task, averaging 49.67% success versus
+41.00% for DINOv3 and 17.00% for CLIP (Table 15).
+This ordering agrees with both simulation
+suites. The comparison extends that result to physical interaction; the wider diagnostic relationships
+remain questions for a larger real-robot encoder study.
+ARX A7
+RealSense
+D405
+(a)
+(c)
+(d)
+(b)
+Figure 12. Physical platform and tasks. (a) The ARX A7 bimanual robot and egocentric RealSense D405
+camera. (b) Drawer Cube Place. (c) Pick Two Cube. (d) Grab Stick.
+Platform and tasks.
+The ARX A7 has 14 action coordinates across its two arms and grippers. An Intel
+RealSense D405 supplies the egocentric RGB view, resized to 224 × 224. Drawer Cube Place requires
+opening a drawer and placing a cube inside. Pick Two Cube requires grasping two cubes, one with each
+gripper, and placing both on a plate. Grab Stick requires aligning the grippers with a slender rod. These
+tasks test sequential interaction, bimanual coordination, and precise alignment (Figure 12).
+24
+
+
+Training and evaluation.
+We use 50 demonstrations per task and a shared multi-task training set. Policies
+are trained for 20,000 updates at batch size 32 and predict 16-step chunks of absolute joint positions.
+The real-robot configuration includes RGB, a task instruction, and 14-dimensional robot state, with four
+Euler steps at inference. Each encoder is evaluated in 100 trials per task, giving 300 trials per encoder.
+Table 15 reports success percentages and their equally weighted mean.
+Table 15. Real-robot success (%). Each entry uses 100 trials; the mean weights the three tasks equally. DINOv2
+leads throughout, with its largest DINOv2–DINOv3 gap on Grab Stick.
+Encoder
+Drawer Cube Place
+Pick Two Cube
+Grab Stick
+Mean
+DINOv2
+42
+31
+76
+49.67
+DINOv3
+32
+27
+64
+41.00
+CLIP
+17
+11
+23
+17.00
+The advantage spans different stages of manipulation.
+DINOv2 exceeds DINOv3 by 10 points on
+Drawer Cube Place, 4 on Pick Two Cube, and 12 on Grab Stick. All three encoders perform best on
+Grab Stick, so the ordering is shared even as task difficulty changes. CLIP falls behind both DINO
+variants on every task. These results favor the same encoder across three different physical demands,
+rather than through one unusually favorable task.
+25
+
+
+E Diagnostics: Definitions and Complete Analyses
+E.1 Token measurements
+For frame 𝑡, let 𝑧𝑡,𝑖∈R𝐷be patch 𝑖on an 𝐻× 𝑊grid, 𝑟𝑡,𝑖= ∥𝑧𝑡,𝑖∥2, and 𝑔𝑡= 𝑁−1 Í
+𝑖𝑧𝑡,𝑖. We sample every
+fifth demonstration, frames 0–100 at stride 5, using the head camera. Frame-level statistics are averaged
+within a video, then across videos and tasks. This describes the early portion of each demonstration. VLM
+tokens are included in readouts but not the grid-based token comparison. MAE’s output order is permuted,
+so neighbor, frequency, patch-temporal, and temporal norm-histogram statistics omit MAE.
+Spatial statistics.
+Mean token cosine averages cos(𝑧𝑖, 𝑧𝑗) over 𝑖≠𝑗; neighbor similarity restricts this
+average to horizontal and vertical grid neighbors. Mean norm averages 𝑟𝑖, and token-to-global cosine averages
+cos(𝑧𝑖, 𝑔). Effective rank is the participation ratio of the centered patch covariance 𝐶, with eigenvalues 𝜆𝑘:
+PR(𝐶) = (Í
+𝑘𝜆𝑘)2/Í
+𝑘𝜆2
+𝑘.
+(4)
+Norm-histogram entropy bins 𝑟𝑖into 30 equal-width bins over that frame’s own minimum and maximum,
+then computes −Í
+𝑏𝑞𝑏ln 𝑞𝑏. It lies in [0, ln 30]. Identical norms occupy one bin; a few exceptionally large
+norms can also lower entropy by compressing the remaining norms into a few bins. It is a histogram-shape
+statistic, rather than a measure of uniform attention over patches.
+Temporal statistics.
+Temporal smoothness is the mean drift (𝑇−1)−1 Í
+𝑡∥𝑔𝑡+1 −𝑔𝑡∥2; smaller values
+mean less change. Temporal cosine shift averages 1 −cos(𝑔𝑡, 𝑔𝑡+1). Temporal variance averages Var𝑡(𝑔𝑡,𝑑)
+over channels. Effective rank and spectral entropy use the covariance eigenvalues of the time-centered
+sequence of pooled features; entropy is −Í
+𝑗𝑝𝑗ln 𝑝𝑗, with 𝑝𝑗= 𝜆𝑗/Í
+𝑘𝜆𝑘. This temporal “spectral”
+entropy refers to covariance eigenvalues, not a Fourier spectrum.
+Lag-one autocorrelation averages
+Í𝑇−1
+𝑡=1 𝑥𝑡,𝑑𝑥𝑡+1,𝑑/Í𝑇
+𝑡=1 𝑥2
+𝑡,𝑑over nonconstant centered channels 𝑥𝑡,𝑑= 𝑔𝑡,𝑑−¯𝑔𝑑.
+Trajectory total variation divides the summed drift by 𝑇, making it a near-duplicate of temporal smooth-
+ness. Patch temporal smoothness averages ∥𝑧𝑡+1,𝑖−𝑧𝑡,𝑖∥2 over time and corresponding patch positions.
+Temporal norm entropy uses 16 equal-width bins over the range of each position’s norms through a
+video, divides the histogram entropy by ln 16, and averages over positions. The trajectory variance ratio
+divides mean within-video temporal variance by the variance of video means, averaged over channels,
+with a small numerical stabilizer in the denominator.
+Spatial frequency.
+Each token channel is reshaped to its patch grid, centered spatially, and transformed with
+an orthonormal 2D Fourier transform. Normalized power 𝑝𝑑(𝑢, 𝑣) sums to one per channel. With frequency
+radius 𝜚normalized by the grid’s maximum radius, low, mid, and high shares sum power over 𝜚≤0.15,
+0.15 < 𝜚≤0.35, and 𝜚> 0.35. Spectral entropy is −Í 𝑝𝑑ln 𝑝𝑑/ln(𝐻𝑊), centroid is 𝜇𝑑= Í 𝑝𝑑𝜚,
+and bandwidth is
+√︁Í 𝑝𝑑(𝜚−𝜇𝑑)2. Each is averaged over channels. These summaries describe a shared
+spectrum and are statistically dependent. Absolute norms, drift, and variance depend on feature scale; cosine,
+participation ratio, adaptive histogram entropy, and normalized spectra remove uniform scaling.
+E.2 Readouts and controls
+IDM and state readouts use a 𝐷→256 input projection, a four-layer pre-norm transformer with four attention
+heads and feed-forward width 512, and a learned query. The readout applies LayerNorm and a two-layer
+width-256 head with GELU. Dropout is 0.1. Parameters in the transformer are shared in architecture, not in
+learned weights, across encoders; only the input projection grows with encoder width. This removes the
+quadratic growth in state-probe capacity that would occur if the transformer used native feature width.
+26
+
+
+The two-frame input is [𝑞; 𝑍𝑡; 𝑍𝑡+16], with within-frame sinusoidal positions and frame-segment embeddings.
+The single-frame control is [𝑞; 𝑍𝑡]. Both predict the same standardized target 𝑎𝑡+15 −𝑠𝑡and report mean
+squared error per coordinate. The state probe predicts standardized 𝑠𝑡. Targets use training-set statistics.
+Input length changes from 1 + 𝑁to 1 + 2𝑁in the two-frame comparison, so its error reduction combines
+a later observation with additional attention computation; it does not isolate motion sensitivity.
+Probes train for four epochs using AdamW, learning rate 5 × 10−4, weight decay 10−4, cosine decay to
+1% of the peak, batch 256, clipping at 1, and seed 42. The episode split is 1,000/500 train/held-out
+on RoboCasa and 400/100 on RoboTwin, stratified across tasks. The lowest held-out error selects the
+epoch and is the reported value, making it a validation error. Diagnostic encoders remain frozen even
+when the checkpoint was previously fine-tuned with the policy.
+The object probe reads the first head-camera frame and predicts the camera-frame 3D location of the task
+object on four RoboTwin tasks: bottle, hammer/block, alarm clock, and laptop. It uses a native-width four-layer
+transformer and reports coordinate-averaged absolute error in meters, with 400 training and 100 held-out
+episodes per task. Its capacity and task coverage differ from the width-256 action/state probes. All readouts use
+the head view; RoboTwin policies additionally see wrist views and, for some interfaces, features that mix views.
+E.3 Statistics and analysis cohorts
+Spearman correlation is Pearson correlation between mid-ranks, preserving ties. A two-sided permutation
+probability uses 100,000 permutations of success across encoders, with (1 + #{|𝜌𝑏| ≥|𝜌|})/(100001).
+Cohorts of at most eight use all permutations. Bootstrap intervals use the 2.5th and 97.5th percentiles of
+10,000 encoder resamples; resamples with zero rank variance are discarded. Permutations use a fixed seed
+indexed by sample size, and bootstrap seeds use a CRC-32 hash of the analysis name.
+The primary family covers all corrected token/readout metrics: 24 on RoboCasa and 25 on RoboTwin
+(including object error). Benjamini–Hochberg correction is applied within each cohort. Single-frame
+IDM is analyzed as a control, with a separate three-readout correction available alongside the primary
+results. The vision-only cohorts contain 14 encoders on Casa ST and 17 on each MT suite; adding
+VLM readouts gives 17 and 20. Position-dependent statistics have one fewer encoder because MAE is
+excluded. The same RoboCasa diagnostic measurements are paired with ST and MT success. Both
+settings therefore share encoders and diagnostic inputs.
+Family deletion removes all encoders in one of the seven groups of Table 6 before recomputing 𝜌. The
+12 task-level associations reuse the same suite-level diagnostic and correlate it with each task’s success.
+Encoders can also share teachers across these groups, so these checks assess sensitivity to composition
+rather than establish independent replications. Partial Spearman correlation regresses the ranks of IDM
+error and success separately on state-error ranks, then correlates the residuals.
+Paired adaptation analyses use DINOv2, DINOv3, VC-1, SigLIP2, and VGGT-Ω, each with corrected frozen
+and fine-tuned success scores. Pooled correlations combine these with the frozen vision cohort; each adapted
+checkpoint shares its initialization with a frozen one. VGGT’s unchanged frequency entries are excluded
+from frequency-change analyses. No policy-fine-tuned vision-benchmark scores are used.
+Family-held-out prediction.
+For each outer fold, ridge regression holds out all encoders in one pretraining
+family. Each feature is standardized using only the training fold. Inner family-held-out validation selects
+the penalty from {0.01, 0.1, 1, 10, 100} by mean absolute error; the intercept is unpenalized. Predictions
+are evaluated in success points. All models use the same complete-case cohort, excluding VLM token
+statistics and MAE’s temporal norm entropy. This gives 13 encoders for Casa ST and 16 for each MT
+suite.
+The mean baseline predicts the outer training mean.
+27
+
+
+Candidate selection.
+A 𝑘-candidate shortlist takes the lowest probe errors, then reports the highest observed
+success among those candidates. Regret is the difference from the best in the full eligible cohort. For success
+values sorted as 𝑦(1) ≤· · · ≤𝑦(𝑛), uniform sampling of 𝑘distinct candidates has expected best success
+E[max 𝑦] =
+𝑛
+∑︁
+𝑗=𝑘
+𝑦( 𝑗)
+ 𝑗−1
+𝑘−1
+
+/
+𝑛
+𝑘
+
+.
+(5)
+The comparison counts policy-training runs, not total wall time, and uses the full frozen suite including
+VLMs.
+It is a retrospective screen on these benchmarks.
+E.4 All metric associations
+Tables 16–18 give all primary associations and the single-frame control. The RoboCasa frequency summaries
+are more consistent than its readout ordering, whereas IDM is the clearest corrected association on
+RoboTwin. Mean token cosine and effective rank show little relationship with success across all three
+settings. The main text separately reports the VLM readout comparison because those tokens do not
+share the vision encoders’ spatial interface.
+Table 16. RoboCasa ST: all diagnostic associations. Vision encoders; CI is the 95% bootstrap interval. Sample
+sizes, permutation tests, and corrections follow Section E.3.
+Measurement
+𝑛
+𝜌
+95% CI
+𝑝
+𝑞
+Mean token cosine
+14
++0.14
+[-0.50,+0.70]
+0.638
+0.696
+Mean token norm
+14
+-0.08
+[-0.72,+0.53]
+0.785
+0.819
+Neighbor similarity
+13
++0.53
+[-0.04,+0.87]
+0.066
+0.198
+Effective rank
+14
+-0.05
+[-0.64,+0.57]
+0.882
+0.882
+Norm-histogram entropy
+14
++0.66
+[+0.13,+0.93]
+0.013
+0.061
+Token-to-global cosine
+14
++0.16
+[-0.48,+0.70]
+0.582
+0.665
+Two-frame IDM
+14
+-0.38
+[-0.83,+0.32]
+0.175
+0.346
+Robot state
+14
+-0.44
+[-0.76,+0.24]
+0.116
+0.252
+Temporal smoothness
+14
+-0.17
+[-0.84,+0.51]
+0.552
+0.662
+Temporal cosine shift
+14
+-0.18
+[-0.73,+0.42]
+0.534
+0.662
+Temporal variance
+14
+-0.24
+[-0.77,+0.42]
+0.418
+0.603
+Temporal effective rank
+14
+-0.58
+[-0.92,+0.01]
+0.032
+0.114
+Temporal spectral entropy
+14
+-0.58
+[-0.92,+0.02]
+0.033
+0.114
+Autocorrelation
+14
++0.23
+[-0.41,+0.73]
+0.427
+0.603
+Trajectory total variation
+14
+-0.17
+[-0.83,+0.50]
+0.552
+0.662
+Patch temporal smoothness
+13
+-0.39
+[-0.82,+0.15]
+0.187
+0.346
+Temporal norm entropy
+13
++0.26
+[-0.36,+0.78]
+0.395
+0.603
+Trajectory variance ratio
+14
+-0.35
+[-0.76,+0.28]
+0.227
+0.389
+Low-frequency fraction
+13
++0.74
+[+0.36,+0.88]
+0.005
+0.029
+Mid-frequency fraction
+13
++0.48
+[-0.08,+0.84]
+0.096
+0.231
+High-frequency fraction
+13
+-0.75
+[-0.89,-0.39]
+0.004
+0.029
+Spatial spectral entropy
+13
+-0.75
+[-0.91,-0.35]
+0.004
+0.029
+Spectral centroid
+13
+-0.75
+[-0.91,-0.37]
+0.004
+0.029
+Spectral bandwidth
+13
+-0.50
+[-0.89,+0.12]
+0.085
+0.226
+Single-frame IDM
+14
+-0.42
+[-0.74,+0.20]
+0.133
+–
+28
+
+
+Table 17. RoboCasa MT: all diagnostic associations. Vision encoders; CI is the 95% bootstrap interval. Sample
+sizes, permutation tests, and corrections follow Section E.3.
+Measurement
+𝑛
+𝜌
+95% CI
+𝑝
+𝑞
+Mean token cosine
+17
+-0.01
+[-0.55,+0.53]
+0.956
+0.979
+Mean token norm
+17
++0.10
+[-0.52,+0.61]
+0.700
+0.934
+Neighbor similarity
+16
++0.48
+[-0.06,+0.83]
+0.061
+0.209
+Effective rank
+17
++0.13
+[-0.40,+0.60]
+0.622
+0.909
+Norm-histogram entropy
+17
++0.42
+[-0.08,+0.78]
+0.097
+0.261
+Token-to-global cosine
+17
++0.07
+[-0.46,+0.56]
+0.800
+0.962
+Two-frame IDM
+17
+-0.47
+[-0.85,+0.09]
+0.056
+0.209
+Robot state
+17
+-0.39
+[-0.76,+0.15]
+0.117
+0.261
+Temporal smoothness
+17
++0.05
+[-0.51,+0.60]
+0.842
+0.962
+Temporal cosine shift
+17
++0.01
+[-0.50,+0.50]
+0.979
+0.979
+Temporal variance
+17
++0.02
+[-0.51,+0.59]
+0.946
+0.979
+Temporal effective rank
+17
+-0.39
+[-0.77,+0.17]
+0.120
+0.261
+Temporal spectral entropy
+17
+-0.41
+[-0.78,+0.15]
+0.102
+0.261
+Autocorrelation
+17
++0.20
+[-0.37,+0.68]
+0.435
+0.745
+Trajectory total variation
+17
++0.05
+[-0.50,+0.60]
+0.842
+0.962
+Patch temporal smoothness
+16
+-0.17
+[-0.67,+0.37]
+0.523
+0.836
+Temporal norm entropy
+16
++0.33
+[-0.23,+0.77]
+0.206
+0.412
+Trajectory variance ratio
+17
+-0.12
+[-0.55,+0.41]
+0.644
+0.909
+Low-frequency fraction
+16
++0.68
+[+0.24,+0.89]
+0.005
+0.030
+Mid-frequency fraction
+16
++0.25
+[-0.29,+0.66]
+0.358
+0.660
+High-frequency fraction
+16
+-0.70
+[-0.89,-0.28]
+0.003
+0.030
+Spatial spectral entropy
+16
+-0.68
+[-0.92,-0.22]
+0.005
+0.030
+Spectral centroid
+16
+-0.68
+[-0.91,-0.22]
+0.004
+0.030
+Spectral bandwidth
+16
+-0.51
+[-0.89,+0.09]
+0.045
+0.209
+Single-frame IDM
+17
+-0.50
+[-0.79,+0.00]
+0.040
+–
+Table 18. RoboTwin MT: all diagnostic associations. Vision encoders; CI is the 95% bootstrap interval. Sample
+sizes, permutation tests, and corrections follow Section E.3.
+Measurement
+𝑛
+𝜌
+95% CI
+𝑝
+𝑞
+Mean token cosine
+17
+-0.15
+[-0.62,+0.41]
+0.560
+0.752
+Mean token norm
+17
++0.42
+[-0.14,+0.80]
+0.099
+0.562
+Neighbor similarity
+16
++0.20
+[-0.30,+0.64]
+0.447
+0.672
+Effective rank
+17
++0.06
+[-0.42,+0.49]
+0.824
+0.930
+Norm-histogram entropy
+17
++0.26
+[-0.25,+0.66]
+0.311
+0.625
+Token-to-global cosine
+17
+-0.14
+[-0.60,+0.42]
+0.593
+0.752
+Two-frame IDM
+17
+-0.75
+[-0.90,-0.40]
+< 0.001
+0.020
+Robot state
+17
+-0.62
+[-0.87,-0.17]
+0.009
+0.112
+Object position
+17
+-0.54
+[-0.87,+0.01]
+0.027
+0.226
+Temporal smoothness
+17
++0.33
+[-0.24,+0.81]
+0.202
+0.562
+Temporal cosine shift
+17
++0.24
+[-0.32,+0.69]
+0.355
+0.635
+Temporal variance
+17
++0.39
+[-0.24,+0.85]
+0.118
+0.562
+Temporal effective rank
+17
++0.02
+[-0.59,+0.56]
+0.937
+0.937
+Temporal spectral entropy
+17
++0.03
+[-0.55,+0.57]
+0.900
+0.937
+Autocorrelation
+17
+-0.05
+[-0.54,+0.43]
+0.855
+0.930
+Trajectory total variation
+17
++0.33
+[-0.25,+0.82]
+0.199
+0.562
+Patch temporal smoothness
+16
++0.20
+[-0.35,+0.67]
+0.457
+0.672
+Temporal norm entropy
+16
++0.26
+[-0.22,+0.66]
+0.325
+0.625
+Trajectory variance ratio
+17
++0.21
+[-0.41,+0.80]
+0.409
+0.672
+Low-frequency fraction
+16
++0.34
+[-0.19,+0.71]
+0.202
+0.562
+Mid-frequency fraction
+16
+-0.13
+[-0.64,+0.39]
+0.626
+0.752
+High-frequency fraction
+16
+-0.29
+[-0.68,+0.24]
+0.265
+0.603
+Spatial spectral entropy
+16
+-0.34
+[-0.72,+0.19]
+0.198
+0.562
+Spectral centroid
+16
+-0.31
+[-0.70,+0.25]
+0.232
+0.579
+Spectral bandwidth
+16
+-0.13
+[-0.64,+0.48]
+0.632
+0.752
+Single-frame IDM
+17
+-0.65
+[-0.90,-0.19]
+0.006
+–
+29
+
+
+E.5 Adaptation and candidate selection
+Table 19.
+Diagnostic associations through RoboTwin fine-tuning.
+Pre: frozen metric versus FT success;
+Post: FT metric versus FT success; Δ: metric change versus success change; Pooled: frozen vision encoders
+plus paired FT checkpoints. “Falls” counts lower metric values after FT. Signs are raw, so negative errors are
+favorable; these small-sample comparisons are exploratory.
+Metric
+𝑛
+Pre
+Post
+Δ
+Pooled
+Falls
+Mean token cosine
+5
++0.10
+-0.60
+-0.90
+-0.42
+5/5
+Mean token norm
+5
++0.80
++0.60
+-0.10
++0.23
+5/5
+Neighbor similarity
+5
++0.20
+-0.80
+-0.70
++0.10
+2/5
+Effective rank
+5
+-0.20
+-0.30
++0.80
+-0.08
+3/5
+Norm-histogram entropy
+5
+-0.20
+-0.30
+-1.00
++0.27
+2/5
+Token-to-global cosine
+5
++0.10
+-0.60
+-0.70
+-0.39
+5/5
+Two-frame IDM
+5
+-0.10
+-0.40
+-0.60
+-0.80
+5/5
+Robot state
+5
++0.50
+-0.60
+-0.40
+-0.70
+5/5
+Object position
+5
+-0.90
++0.60
++0.40
+-0.43
+1/5
+Temporal smoothness
+5
++0.90
++0.80
++0.40
++0.21
+4/5
+Temporal cosine shift
+5
++0.40
+-0.60
++0.90
++0.40
+1/5
+Temporal variance
+5
++1.00
++0.60
+-0.30
++0.43
+3/5
+Temporal effective rank
+5
++0.30
+-0.40
++0.90
+-0.15
+3/5
+Temporal spectral entropy
+5
++0.30
+-0.30
++0.80
+-0.20
+3/5
+Autocorrelation
+5
+-0.60
+-0.20
+-0.60
++0.37
+0/5
+Trajectory total variation
+5
++0.90
++0.80
++0.40
++0.21
+4/5
+Patch temporal smoothness
+5
++0.50
++0.80
++0.80
++0.03
+4/5
+Temporal norm entropy
+5
+-0.40
++0.10
++0.70
+-0.03
+4/5
+Trajectory variance ratio
+5
++0.90
+-0.20
++0.20
++0.54
+0/5
+Low-frequency fraction
+4
++0.00
+-0.60
++0.20
++0.46
+0/4
+Mid-frequency fraction
+4
+-0.80
++0.00
+-0.80
++0.15
+1/4
+High-frequency fraction
+4
++0.00
++0.00
+-0.20
+-0.45
+4/4
+Spatial spectral entropy
+4
++0.00
++0.60
+-0.40
+-0.47
+4/4
+Spectral centroid
+4
++0.00
++0.00
++0.40
+-0.49
+4/4
+Spectral bandwidth
+4
++0.80
++0.60
++0.40
+-0.31
+4/4
+Single-frame IDM
+5
++0.40
+-0.70
+-0.30
+-0.75
+4/5
+Table 20. Selecting five candidates. All frozen encoders with success and probe measurements are eligible. “Best” is
+the highest success retained by the shortlist; “Full” is the highest in the full cohort; “Random” is the exact expected
+best of five uniformly sampled candidates. All scores are success percentages; regret is in points.
+Setting
+Selection readout
+Best
+Full
+Regret
+Random
+Casa ST
+Two-frame IDM
+32.61
+43.17
+10.56
+36.32
+Casa ST
+Robot state
+32.61
+43.17
+10.56
+36.32
+Casa ST
+Single-frame IDM
+32.50
+43.17
+10.67
+36.32
+Casa MT
+Two-frame IDM
+31.22
+35.39
+4.17
+32.17
+Casa MT
+Robot state
+34.78
+35.39
+0.61
+32.17
+Casa MT
+Single-frame IDM
+34.78
+35.39
+0.61
+32.17
+Twin MT
+Two-frame IDM
+53.22
+53.67
+0.45
+50.52
+Twin MT
+Robot state
+53.22
+53.67
+0.45
+50.52
+Twin MT
+Single-frame IDM
+46.78
+53.67
+6.89
+50.52
+Interpreting associations and screening.
+The comparison counts policy-training runs, not total wall time,
+and includes VLMs. In Casa ST, IDM-5 retains 32.61% against 36.32% for random-five and 43.17% for the
+full cohort; Casa MT also falls below random selection. On Twin, IDM-5 retains 53.22% against 50.52%
+for random-five, but IDM-3 falls below random-three (45.17% versus 47.33%). These retrospective results
+describe benchmark- and budget-dependent associations, not a generally reliable selection rule. All corrected
+metrics in the primary diagnostic export enter the within-cohort correction; none is filtered by its observed
+correlation or 𝑝-value. These 𝑞-values apply to the stated 24/25-metric families, not the larger legacy collection.
+30
+
+
+Vision scores and adaptation analyses form separate comparisons. Correlation, conditional significance, and
+candidate-selection quality answer different questions; none alone establishes a transferable selection rule.
+31
+
+
+E.6 Published vision benchmarks
+Table 21 uses exact checkpoint matches and one protocol per metric. ImageNet linear/kNN, ADE20k,
+Cityscapes, VOC, NYUv2, and KITTI use the LingBot-Vision evaluation tables [55]; NAVI and SPair
+use the DINOv3 comparison with C-RADIOv4-H added from its corresponding evaluation [29, 52];
+DAVIS uses the medium-resolution DINOv3 label-propagation comparison. Depth is an error, so neg-
+ative 𝜌is favorable. The DINOv2/DINOv3 Small, Base, and Large comparisons share model size but
+retain their released preprocessing and patch interfaces.
+Table 21. Published vision score versus frozen MT success. Raw Spearman correlation and two-sided permutation
+𝑝; all ten primary vision metrics have 𝑝> 0.05 on both suites.
+RoboCasa
+RoboTwin
+Metric
+𝑛
+𝜌
+𝑝
+𝜌
+𝑝
+ImageNet linear
+9
++0.07
+0.880
++0.38
+0.316
+ImageNet kNN
+9
++0.02
+0.982
++0.35
+0.363
+ADE20k
+9
++0.10
+0.810
+-0.02
+0.982
+Cityscapes
+9
++0.10
+0.810
+-0.02
+0.982
+VOC
+9
++0.10
+0.809
+-0.43
+0.249
+NYUv2
+9
++0.00
+1.000
++0.18
+0.644
+KITTI
+9
++0.00
+1.000
++0.00
+1.000
+NAVI
+10
++0.08
+0.837
++0.10
+0.785
+SPair
+10
++0.30
+0.406
+-0.01
+1.000
+DAVIS medium
+9
+-0.27
+0.482
+-0.29
+0.443
+Additional same-protocol blocks are analyzed separately in Table 22, including eight-frame video classification
+within DINOv2. These size sweeps test scaling within a family, rather than broad encoder selection. Scores
+from different probing heads, resolutions, or fine-tuning protocols are not pooled. RADIOv2.5-H/g scores
+do not stand in for the default Base checkpoint; C-RADIOv4-SO400M scores do not stand in for H. The
+video attentive-probe and YouTube-VOS/MOSE blocks lack a comparable cohort of three exact policy
+checkpoints under one protocol and resolution. Isolated scores remain descriptive.
+Table 22. Additional published-score associations, separated by protocol. D2 and D3 denote the DINOv2 and
+DINOv3 evaluation protocols. D3 dense uses 1,024 patch tokens. Correlations are raw; smaller depth errors are favorable.
+RoboCasa
+RoboTwin
+Protocol
+Metric
+𝑛
+𝜌
+𝑝
+𝜌
+𝑝
+D2 video
+UCF101
+4
++0.40
+0.750
++0.80
+0.333
+D2 video
+SSv2
+4
++0.40
+0.750
++0.80
+0.333
+D2 video
+K400
+4
++0.40
+0.750
++0.80
+0.333
+D2 classification
+ImageNet val
+4
++0.40
+0.750
++0.80
+0.333
+D2 classification
+ImageNet V2
+4
++0.40
+0.750
++0.80
+0.333
+D2 classification
+ImageNet ReaL
+4
++0.40
+0.750
++0.80
+0.333
+D2 classification
+ImageNet kNN
+4
++0.32
+0.667
++0.95
+0.167
+D2 dense
+ADE20k
+4
++0.40
+0.750
++0.80
+0.333
+D2 dense
+Cityscapes
+4
++0.40
+0.750
++0.80
+0.333
+D2 dense
+VOC
+4
++0.80
+0.333
++0.40
+0.750
+D2 dense
+NYUv2
+4
+-0.40
+0.750
+-0.80
+0.333
+D2 dense
+KITTI
+4
+-0.40
+0.750
+-0.80
+0.333
+D3 dense
+ADE20k
+5
++0.10
+0.950
++0.10
+0.950
+D3 dense
+NYUv2
+5
+-0.05
+1.000
+-0.41
+0.500
+32
+
+
+F Complete Results
+This section lists the closed-loop results behind Section C. A suite score is the unweighted mean of its
+task scores. The tables give the underlying task values and evaluation deviations.
+Table 23. Task identifiers. RoboCasa-GR1 tasks (C) and RoboTwin 2.0 tasks (W) used in every per-task table.
+“PnP” denotes pick-and-place; the RoboCasa single-task data-scale sweep uses C1–C4.
+ID
+RoboCasa-GR1 task
+ID
+RoboTwin 2.0 task
+C1
+PnP Bottle To Cabinet Close
+W1
+Adjust Bottle
+C2
+PnP Can To Drawer Close
+W2
+Beat Block Hammer
+C3
+PnP Milk To Microwave Close
+W3
+Click Alarmclock
+C4
+PnP Novel From Cuttingboard To Basket
+W4
+Handover Block
+C5
+PnP Novel From Cuttingboard To Pan
+W5
+Move Playingcard Away
+C6
+PnP Novel From Placemat To Basket
+W6
+Open Laptop
+C7
+PnP Novel From Placemat To Plate
+W7
+Place Can Basket
+C8
+PnP Novel From Plate To Cardboardbox
+W8
+Rotate QRcode
+C9
+PnP Novel From Plate To Plate
+W9
+Stamp Seal
+C10
+PnP Novel From Tray To Plate
+W10
+Turn Switch
+C11
+PnP Novel From Tray To Pot
+W11
+Place Burger Fries
+C12
+PnP Novel From Tray To Tieredbasket
+W12
+Lift Pot
+F.1 Task-level success
+Tables 24, 26, and 28 give per-task success for every frozen encoder, every available layer-16 variant, every
+fine-tuned encoder, the input and query-token ablations, and the global-average-pooling readout discussed in
+Section C.2. To keep the page format, each table is split in two: tasks 1–6, then tasks 7–12 with the suite average.
+33
+
+
+Table 24. RoboCasa single-task. Tasks C1–C6; success (%), with evaluation deviations in smaller type.
+Encoder / setting
+C1
+C2
+C3
+C4
+C5
+C6
+VGGT-Ω
+48.0 ±6.5
+74.0 ±4.3
+50.0 ±5.9
+39.3 ±2.5
+59.3 ±2.5
+32.0 ±4.3
+LingBot-Vision
+49.3 ±3.8
+68.7 ±2.5
+42.0 ±4.9
+30.0 ±3.3
+38.0 ±1.6
+19.3 ±0.9
+DINOv2
+60.7 ±5.0
+61.3 ±3.4
+49.3 ±6.2
+26.7 ±0.9
+42.7 ±3.4
+16.0 ±1.6
+DINOv3
+53.3 ±2.5
+60.0 ±5.7
+47.3 ±6.6
+17.3 ±5.7
+33.3 ±7.4
+15.3 ±3.4
+MAE
+55.3 ±6.2
+64.7 ±0.9
+40.7 ±4.1
+14.0 ±1.6
+5.3 ±5.0
+1.3 ±0.9
+V-JEPA 2.1
+44.0 ±4.3
+54.7 ±0.9
+34.7 ±4.1
+1.3 ±0.9
+30.7 ±3.4
+9.3 ±3.4
+Xiaomi-Robotics-1
+40.7 ±2.5
+63.3 ±8.1
+44.0 ±8.6
+14.0 ±2.8
+17.3 ±3.4
+5.3 ±2.5
+DepthVLM
+48.7 ±8.2
+52.7 ±2.5
+37.3 ±3.4
+22.7 ±4.1
+30.7 ±8.2
+14.0 ±4.3
+Qwen3-VL
+33.3 ±0.9
+55.3 ±7.4
+24.7 ±7.4
+12.0 ±1.6
+28.0 ±9.1
+8.0 ±4.3
+SigLIP2
+48.0 ±1.6
+61.3 ±6.8
+44.0 ±6.5
+15.3 ±3.4
+38.7 ±8.1
+8.7 ±5.2
+InternViT
+43.3 ±0.9
+52.0 ±1.6
+47.3 ±6.8
+12.0 ±2.8
+20.7 ±3.8
+6.7 ±1.9
+SigLIP
+32.7 ±4.1
+39.3 ±2.5
+28.7 ±6.6
+8.0 ±1.6
+23.3 ±4.1
+5.3 ±2.5
+CLIP
+28.7 ±9.0
+39.3 ±10.0
+26.7 ±4.1
+6.0 ±4.3
+14.0 ±2.8
+6.7 ±1.9
+VC-1
+59.3 ±4.1
+71.3 ±5.7
+56.7 ±2.5
+12.0 ±1.6
+41.3 ±0.9
+8.0 ±3.3
+Voltron
+48.0 ±6.5
+60.0 ±4.3
+43.3 ±7.7
+21.3 ±4.7
+48.7 ±3.4
+19.3 ±2.5
+Theia
+46.7 ±6.8
+58.0 ±4.3
+36.7 ±3.4
+19.3 ±0.9
+24.7 ±4.1
+12.7 ±1.9
+ViT
+29.3 ±1.9
+33.3 ±9.4
+37.3 ±4.1
+4.7 ±0.9
+11.3 ±0.9
+3.3 ±0.9
+VGGT-Ω FT
+72.7 ±3.8
+78.0 ±4.3
+70.0 ±9.9
+44.7 ±3.4
+58.0 ±2.8
+43.3 ±0.9
+DINOv2 FT
+64.7 ±3.8
+76.7 ±3.4
+46.7 ±8.4
+40.0 ±4.3
+46.0 ±2.8
+32.0 ±2.8
+DINOv3 FT
+71.3 ±2.5
+68.0 ±1.6
+50.7 ±5.2
+34.7 ±4.1
+55.3 ±5.0
+32.0 ±4.9
+SigLIP2 FT
+43.3 ±7.7
+65.3 ±0.9
+41.3 ±2.5
+20.0 ±2.8
+42.7 ±4.1
+16.7 ±2.5
+VC-1 FT
+54.0 ±5.7
+70.0 ±8.6
+46.7 ±2.5
+37.3 ±0.9
+57.3 ±0.9
+29.3 ±3.4
+LingBot-Vision L16
+55.3 ±6.2
+72.7 ±2.5
+44.7 ±4.7
+28.7 ±6.6
+39.3 ±2.5
+25.3 ±3.4
+Xiaomi-Robotics-1 L16
+52.7 ±3.8
+68.7 ±6.2
+40.7 ±6.2
+19.3 ±5.0
+44.0 ±8.6
+16.0 ±5.7
+DepthVLM L16
+44.0 ±3.3
+60.7 ±6.8
+48.7 ±6.2
+27.3 ±6.6
+44.7 ±8.2
+24.0 ±5.9
+Qwen3-VL L16
+48.7 ±3.8
+61.3 ±5.0
+34.0 ±7.1
+28.7 ±2.5
+40.7 ±9.8
+20.7 ±5.7
+Table 25.
+RoboCasa single-task (continued).
+Tasks C7–C12.
+Avg.
+is the twelve-task mean; uncertainty
+follows Section A.2.
+Encoder / setting
+C7
+C8
+C9
+C10
+C11
+C12
+Avg.
+VGGT-Ω
+14.7 ±1.9
+14.0 ±2.8
+57.3 ±6.2
+49.3 ±6.8
+52.0 ±3.3
+28.0 ±7.5
+43.2 ±1.4
+LingBot-Vision
+10.7 ±2.5
+9.3 ±5.7
+38.0 ±1.6
+32.0 ±3.3
+30.0 ±0.0
+14.0 ±3.3
+31.8 ±0.9
+DINOv2
+14.0 ±0.0
+21.3 ±0.9
+41.3 ±3.4
+51.3 ±2.5
+43.3 ±0.9
+20.0 ±4.3
+37.3 ±0.9
+DINOv3
+14.7 ±5.2
+16.7 ±3.4
+32.0 ±7.1
+50.7 ±2.5
+35.3 ±1.9
+14.0 ±2.8
+32.5 ±1.4
+MAE
+13.3 ±6.6
+3.3 ±2.5
+11.3 ±6.6
+33.3 ±0.9
+10.7 ±1.9
+21.3 ±0.9
+22.9 ±1.1
+V-JEPA 2.1
+9.3 ±3.4
+8.0 ±5.9
+28.7 ±5.2
+28.0 ±1.6
+19.3 ±3.8
+12.7 ±1.9
+23.4 ±1.0
+Xiaomi-Robotics-1
+14.0 ±2.8
+9.3 ±2.5
+28.7 ±8.4
+28.0 ±5.9
+21.3 ±5.0
+12.0 ±5.7
+24.8 ±1.6
+DepthVLM
+10.7 ±3.4
+8.7 ±6.8
+36.0 ±2.8
+39.3 ±9.0
+23.3 ±4.1
+14.7 ±1.9
+28.2 ±1.6
+Qwen3-VL
+16.7 ±5.2
+12.0 ±5.9
+31.3 ±8.4
+24.7 ±7.7
+22.0 ±1.6
+17.3 ±0.9
+23.8 ±1.7
+SigLIP2
+8.0 ±4.9
+2.7 ±0.9
+43.3 ±0.9
+38.7 ±9.3
+36.7 ±6.6
+12.0 ±4.3
+29.8 ±1.6
+InternViT
+8.7 ±2.5
+8.0 ±5.9
+19.3 ±2.5
+22.7 ±0.9
+18.7 ±4.7
+9.3 ±3.4
+22.4 ±1.1
+SigLIP
+10.0 ±1.6
+3.3 ±2.5
+10.7 ±5.2
+18.0 ±5.9
+14.7 ±0.9
+5.3 ±4.1
+16.6 ±1.1
+CLIP
+10.0 ±5.9
+8.7 ±4.1
+10.7 ±5.0
+25.3 ±4.1
+2.0 ±1.6
+4.0 ±3.3
+15.2 ±1.5
+VC-1
+24.0 ±4.3
+12.0 ±1.6
+18.7 ±5.2
+42.0 ±7.5
+33.3 ±3.4
+12.7 ±2.5
+32.6 ±1.2
+Voltron
+12.0 ±4.3
+14.7 ±3.4
+36.0 ±3.3
+34.0 ±3.3
+26.7 ±3.4
+19.3 ±0.9
+31.9 ±1.2
+Theia
+6.7 ±2.5
+10.0 ±1.6
+34.0 ±4.3
+30.7 ±6.2
+28.0 ±5.7
+16.7 ±6.6
+27.0 ±1.3
+ViT
+5.3 ±0.9
+5.3 ±2.5
+10.0 ±2.8
+14.0 ±2.8
+16.0 ±4.3
+6.0 ±4.3
+14.7 ±1.1
+VGGT-Ω FT
+26.7 ±4.1
+14.0 ±1.6
+70.7 ±3.4
+48.7 ±3.4
+56.7 ±1.9
+28.0 ±7.5
+50.9 ±1.3
+DINOv2 FT
+8.0 ±1.6
+17.3 ±5.0
+37.3 ±6.2
+35.3 ±12.5
+39.3 ±4.7
+33.3 ±7.7
+39.7 ±1.7
+DINOv3 FT
+17.3 ±2.5
+14.0 ±5.7
+53.3 ±5.0
+42.7 ±10.9
+43.3 ±4.7
+20.7 ±0.9
+41.9 ±1.5
+SigLIP2 FT
+12.0 ±3.3
+14.7 ±1.9
+35.3 ±7.7
+37.3 ±6.6
+34.0 ±4.3
+8.0 ±2.8
+30.9 ±1.3
+VC-1 FT
+18.0 ±4.3
+9.3 ±0.9
+42.0 ±7.5
+30.0 ±1.6
+40.0 ±4.3
+31.3 ±4.1
+38.8 ±1.3
+LingBot-Vision L16
+10.0 ±4.9
+10.0 ±1.6
+30.7 ±0.9
+35.3 ±3.4
+28.7 ±2.5
+16.0 ±4.9
+33.1 ±1.2
+Xiaomi-Robotics-1 L16
+15.3 ±3.4
+12.7 ±3.4
+34.7 ±1.9
+36.7 ±5.2
+36.0 ±1.6
+20.7 ±6.8
+33.1 ±1.5
+DepthVLM L16
+18.7 ±0.9
+12.7 ±3.8
+42.0 ±7.5
+34.7 ±3.4
+30.7 ±3.8
+22.0 ±1.6
+34.2 ±1.5
+Qwen3-VL L16
+14.0 ±4.3
+12.7 ±1.9
+38.7 ±10.5
+43.3 ±2.5
+30.0 ±6.5
+19.3 ±5.0
+32.7 ±1.7
+34
+
+
+Table 26. RoboCasa multi-task. Tasks C1–C6; success (%), with evaluation deviations in smaller type.
+Encoder / setting
+C1
+C2
+C3
+C4
+C5
+C6
+VGGT-Ω
+29.3 ±5.7
+38.0 ±1.6
+34.0 ±4.3
+39.3 ±2.5
+52.0 ±1.6
+32.0 ±4.3
+LingBot-Vision
+34.0 ±8.2
+49.3 ±9.0
+34.7 ±5.7
+27.3 ±3.4
+44.0 ±2.8
+12.7 ±2.5
+SPA
+28.0 ±2.8
+28.0 ±4.3
+28.0 ±10.2
+8.0 ±1.6
+20.0 ±2.8
+11.3 ±3.4
+DINOv2
+41.3 ±5.2
+37.3 ±2.5
+38.0 ±4.3
+36.7 ±4.1
+49.3 ±2.5
+20.7 ±3.4
+DINOv3
+50.0 ±4.3
+34.0 ±1.6
+38.7 ±6.2
+20.7 ±5.2
+41.3 ±5.2
+22.0 ±3.3
+MAE
+36.7 ±7.4
+39.3 ±5.0
+26.7 ±0.9
+24.0 ±1.6
+40.7 ±6.6
+16.0 ±4.3
+V-JEPA 2.1
+26.7 ±5.7
+26.7 ±2.5
+30.7 ±7.5
+14.0 ±0.0
+36.7 ±5.0
+4.7 ±2.5
+Xiaomi-Robotics-1
+35.3 ±6.8
+38.0 ±1.6
+22.7 ±7.4
+25.3 ±3.8
+32.7 ±3.4
+16.0 ±4.3
+DepthVLM
+27.3 ±2.5
+22.7 ±2.5
+6.7 ±2.5
+22.0 ±2.8
+22.7 ±3.8
+16.7 ±3.4
+Qwen3-VL
+24.7 ±5.0
+24.7 ±2.5
+11.3 ±2.5
+20.0 ±7.1
+29.3 ±5.2
+13.3 ±2.5
+SigLIP2
+35.3 ±5.7
+32.0 ±4.3
+43.3 ±5.7
+29.3 ±4.7
+46.0 ±10.2
+20.0 ±3.3
+InternViT
+39.3 ±3.4
+24.7 ±0.9
+27.3 ±6.8
+13.3 ±0.9
+16.7 ±0.9
+6.7 ±1.9
+SigLIP
+19.3 ±7.5
+20.0 ±4.3
+16.7 ±5.2
+6.7 ±2.5
+19.3 ±4.1
+5.3 ±1.9
+CLIP
+16.7 ±0.9
+12.0 ±1.6
+14.0 ±5.9
+8.0 ±4.9
+12.7 ±2.5
+2.7 ±0.9
+VC-1
+40.7 ±5.0
+47.3 ±6.6
+26.7 ±5.7
+17.3 ±7.7
+48.7 ±3.4
+24.7 ±6.6
+Voltron
+27.3 ±4.1
+45.3 ±3.4
+20.7 ±1.9
+18.0 ±1.6
+42.7 ±5.0
+22.0 ±1.6
+Theia
+30.0 ±3.3
+36.7 ±1.9
+35.3 ±2.5
+20.7 ±0.9
+34.0 ±1.6
+22.0 ±4.3
+C-RADIOv4
+35.3 ±4.7
+64.0 ±9.1
+40.0 ±5.7
+33.3 ±3.4
+50.0 ±5.9
+26.0 ±1.6
+RADIOv2.5
+36.0 ±4.3
+37.3 ±3.4
+18.7 ±4.1
+16.7 ±4.1
+38.7 ±2.5
+12.7 ±1.9
+ViT
+13.3 ±2.5
+21.3 ±4.7
+24.0 ±7.5
+9.3 ±3.4
+18.7 ±2.5
+8.0 ±3.3
+DINOv2 (mean)
+11.3 ±6.8
+20.0 ±4.9
+16.0 ±1.6
+7.3 ±2.5
+7.3 ±3.4
+5.3 ±2.5
+DINOv2 + state
+52.7 ±6.1
+40.0 ±5.3
+52.7 ±5.0
+27.3 ±5.0
+28.7 ±9.0
+24.7 ±11.4
+DINOv2 (no queries)
+42.0 ±6.0
+54.7 ±5.0
+37.3 ±3.1
+24.7 ±13.3
+35.3 ±3.1
+18.0 ±2.0
+DINOv3 (mean)
+16.0 ±5.9
+12.7 ±0.9
+4.0 ±1.6
+2.0 ±1.6
+2.7 ±0.9
+1.3 ±0.9
+DINOv3 (320 px)
+28.7 ±7.0
+35.3 ±9.4
+38.0 ±2.0
+32.0 ±7.2
+45.3 ±1.1
+32.0 ±8.7
+DINOv3 (no queries)
+30.7 ±8.3
+38.0 ±2.0
+22.7 ±3.1
+16.0 ±7.2
+30.7 ±4.2
+11.3 ±1.1
+Xiaomi-Robotics-1 L16
+34.7 ±1.9
+49.3 ±0.9
+35.3 ±6.8
+32.7 ±7.4
+40.7 ±0.9
+20.7 ±0.9
+Qwen3-VL L16
+43.3 ±5.2
+52.7 ±1.9
+30.7 ±3.4
+32.0 ±8.5
+37.3 ±6.2
+17.3 ±3.4
+RADIOv2.5 + state
+38.0 ±4.0
+33.3 ±3.1
+30.7 ±4.2
+16.0 ±2.0
+44.0 ±2.0
+22.7 ±6.1
+Table 27.
+RoboCasa multi-task (continued).
+Tasks C7–C12.
+Avg.
+is the twelve-task mean; uncertainty
+follows Section A.2.
+Encoder / setting
+C7
+C8
+C9
+C10
+C11
+C12
+Avg.
+VGGT-Ω
+21.3 ±2.5
+16.0 ±4.9
+44.0 ±8.6
+46.0 ±3.3
+45.3 ±5.7
+27.3 ±5.0
+35.4 ±1.3
+LingBot-Vision
+10.7 ±1.9
+14.7 ±3.4
+34.7 ±6.2
+34.7 ±5.2
+35.3 ±2.5
+20.7 ±5.2
+29.4 ±1.5
+SPA
+10.0 ±2.8
+2.0 ±1.6
+15.3 ±0.9
+17.3 ±2.5
+19.3 ±0.9
+10.7 ±3.8
+16.5 ±1.1
+DINOv2
+28.7 ±2.5
+14.0 ±3.3
+34.0 ±2.8
+46.0 ±13.4
+38.7 ±3.4
+2.7 ±0.9
+32.3 ±1.4
+DINOv3
+23.3 ±7.4
+25.3 ±0.9
+26.0 ±4.3
+46.7 ±5.2
+34.7 ±2.5
+12.0 ±4.9
+31.2 ±1.3
+MAE
+10.7 ±6.8
+8.0 ±4.3
+30.0 ±5.7
+26.7 ±5.2
+29.3 ±2.5
+15.3 ±6.6
+25.3 ±1.5
+V-JEPA 2.1
+13.3 ±1.9
+5.3 ±3.4
+16.0 ±1.6
+12.7 ±8.2
+22.0 ±1.6
+15.3 ±0.9
+18.7 ±1.2
+Xiaomi-Robotics-1
+9.3 ±8.2
+10.0 ±0.0
+32.0 ±4.3
+34.7 ±4.1
+28.7 ±7.5
+17.3 ±10.4
+25.2 ±1.7
+DepthVLM
+10.0 ±3.3
+10.7 ±2.5
+22.0 ±2.8
+26.0 ±0.0
+21.3 ±9.0
+14.0 ±3.3
+18.5 ±1.1
+Qwen3-VL
+11.3 ±1.9
+13.3 ±0.9
+22.0 ±5.9
+26.0 ±2.8
+26.0 ±4.3
+12.7 ±4.1
+19.6 ±1.2
+SigLIP2
+18.7 ±5.2
+12.0 ±1.6
+26.7 ±2.5
+33.3 ±6.8
+47.3 ±5.7
+5.3 ±0.9
+29.1 ±1.5
+InternViT
+9.3 ±2.5
+11.3 ±5.0
+21.3 ±2.5
+28.0 ±2.8
+26.0 ±1.6
+17.3 ±5.0
+20.1 ±1.0
+SigLIP
+12.0 ±1.6
+10.7 ±1.9
+14.7 ±3.8
+15.3 ±7.7
+20.0 ±4.9
+4.0 ±1.6
+13.7 ±1.3
+CLIP
+8.0 ±1.6
+10.0 ±3.3
+12.0 ±2.8
+16.0 ±4.3
+18.0 ±4.3
+7.3 ±3.4
+11.4 ±1.0
+VC-1
+16.0 ±4.9
+14.0 ±5.9
+31.3 ±0.9
+36.0 ±3.3
+36.7 ±0.9
+2.0 ±1.6
+28.4 ±1.4
+Voltron
+8.0 ±1.6
+7.3 ±0.9
+26.7 ±6.6
+28.7 ±3.4
+33.3 ±0.9
+18.0 ±4.9
+24.8 ±1.0
+Theia
+6.7 ±2.5
+9.3 ±2.5
+24.0 ±8.2
+29.3 ±3.4
+31.3 ±5.7
+18.7 ±0.9
+24.8 ±1.1
+C-RADIOv4
+22.7 ±0.9
+14.7 ±6.2
+30.7 ±2.5
+36.0 ±4.3
+35.3 ±0.9
+29.3 ±6.6
+34.8 ±1.4
+RADIOv2.5
+15.3 ±2.5
+9.3 ±2.5
+20.0 ±5.9
+30.7 ±3.8
+34.0 ±5.7
+23.3 ±3.4
+24.4 ±1.1
+ViT
+10.0 ±2.8
+8.0 ±2.8
+18.0 ±7.5
+14.0 ±2.8
+16.7 ±5.0
+2.7 ±0.9
+13.7 ±1.2
+DINOv2 (mean)
+10.0 ±4.3
+1.3 ±0.9
+6.7 ±2.5
+13.3 ±1.9
+12.7 ±2.5
+8.0 ±2.8
+9.9 ±1.0
+DINOv2 + state
+17.3 ±1.1
+40.0 ±8.0
+54.0 ±2.0
+42.7 ±10.3
+27.0 ±5.6
+16.0 ±2.0
+35.2 ±3.0
+DINOv2 (no queries)
+16.0 ±2.0
+9.3 ±4.2
+25.3 ±5.8
+24.7 ±7.6
+27.3 ±13.6
+18.7 ±6.4
+27.8 ±2.7
+DINOv3 (mean)
+3.3 ±3.4
+2.7 ±0.9
+8.0 ±1.6
+6.7 ±2.5
+7.3 ±2.5
+10.7 ±0.9
+6.4 ±0.7
+DINOv3 (320 px)
+16.7 ±1.1
+26.7 ±2.3
+30.7 ±6.4
+36.0 ±3.5
+34.7 ±6.4
+32.7 ±3.1
+32.4 ±1.3
+DINOv3 (no queries)
+13.3 ±4.2
+6.0 ±2.0
+35.3 ±5.8
+25.3 ±4.2
+35.3 ±7.0
+17.3 ±4.2
+23.5 ±1.7
+Xiaomi-Robotics-1 L16
+23.3 ±0.9
+13.3 ±5.0
+40.7 ±6.6
+43.3 ±3.4
+43.3 ±5.0
+24.0 ±1.6
+33.4 ±1.2
+Qwen3-VL L16
+16.7 ±3.4
+14.7 ±4.1
+29.3 ±5.0
+38.0 ±5.9
+26.0 ±1.6
+24.7 ±2.5
+30.2 ±1.4
+RADIOv2.5 + state
+20.0 ±9.2
+21.3 ±6.4
+24.0 ±9.2
+20.7 ±1.1
+34.0 ±3.5
+9.3 ±4.2
+26.2 ±1.2
+35
+
+
+Table 28. RoboTwin multi-task. Tasks W1–W6; success (%), with evaluation deviations in smaller type.
+Encoder / setting
+W1
+W2
+W3
+W4
+W5
+W6
+VGGT-Ω
+90.0 ±4.3
+74.0 ±7.5
+83.3 ±6.8
+18.0 ±1.6
+44.7 ±3.4
+74.7 ±5.7
+LingBot-Vision
+91.3 ±4.1
+62.0 ±5.9
+84.7 ±3.4
+26.0 ±3.3
+54.7 ±6.8
+84.0 ±8.2
+SPA
+19.3 ±4.1
+5.3 ±2.5
+34.0 ±4.3
+0.7 ±0.9
+6.0 ±0.0
+50.7 ±1.9
+DINOv2
+96.7 ±0.9
+63.3 ±0.9
+94.7 ±0.9
+14.7 ±6.2
+44.7 ±8.4
+90.7 ±3.4
+DINOv3
+72.0 ±1.6
+42.0 ±5.9
+63.3 ±6.8
+15.3 ±5.0
+16.0 ±7.1
+59.3 ±2.5
+MAE
+77.3 ±2.5
+32.0 ±3.3
+60.7 ±10.4
+0.0 ±0.0
+12.0 ±4.3
+69.3 ±1.9
+V-JEPA 2.1
+94.7 ±2.5
+50.7 ±1.9
+92.0 ±1.6
+2.7 ±0.9
+24.7 ±5.2
+80.0 ±7.1
+Xiaomi-Robotics-1
+92.7 ±2.5
+54.7 ±5.2
+88.0 ±1.6
+9.3 ±1.9
+66.0 ±5.7
+95.3 ±3.4
+DepthVLM
+92.7 ±4.7
+60.7 ±0.9
+97.3 ±0.9
+32.0 ±5.9
+46.7 ±5.2
+82.0 ±4.3
+Qwen3-VL
+94.7 ±3.4
+68.0 ±4.3
+90.7 ±1.9
+32.7 ±8.1
+38.7 ±6.6
+83.3 ±1.9
+SigLIP2
+95.3 ±1.9
+56.7 ±6.6
+94.7 ±0.9
+1.3 ±0.9
+46.0 ±8.6
+79.3 ±8.2
+InternViT
+64.7 ±7.7
+22.0 ±4.3
+76.7 ±6.8
+2.0 ±1.6
+32.7 ±3.4
+59.3 ±6.2
+SigLIP
+78.7 ±5.7
+27.3 ±6.2
+56.0 ±5.7
+4.7 ±3.4
+10.0 ±4.3
+50.7 ±3.4
+CLIP
+62.0 ±2.8
+25.3 ±6.6
+40.0 ±1.6
+4.0 ±2.8
+16.0 ±1.6
+46.7 ±0.9
+VC-1
+44.0 ±5.9
+28.0 ±4.3
+53.3 ±2.5
+0.0 ±0.0
+15.3 ±4.7
+66.7 ±6.6
+Voltron
+70.0 ±2.8
+34.0 ±1.6
+49.3 ±4.1
+0.0 ±0.0
+13.3 ±2.5
+42.0 ±4.3
+Theia
+93.3 ±0.9
+50.7 ±0.9
+89.3 ±0.9
+3.3 ±1.9
+40.0 ±6.5
+86.7 ±3.4
+C-RADIOv4
+70.7 ±5.7
+64.0 ±8.6
+98.7 ±0.9
+9.3 ±3.4
+31.3 ±0.9
+90.7 ±5.0
+RADIOv2.5
+77.3 ±0.9
+41.3 ±8.2
+48.0 ±5.7
+26.7 ±0.9
+15.3 ±3.4
+68.7 ±2.5
+ViT
+46.0 ±5.9
+17.3 ±0.9
+26.7 ±5.0
+2.0 ±1.6
+11.3 ±0.9
+53.3 ±5.0
+VGGT-Ω FT
+99.3 ±0.9
+79.3 ±5.7
+99.3 ±0.9
+76.0 ±5.9
+95.3 ±0.9
+97.3 ±2.5
+DINOv2 FT
+96.0 ±2.8
+22.0 ±9.1
+64.0 ±1.6
+3.3 ±2.5
+68.7 ±5.2
+96.0 ±1.6
+DINOv3 FT
+58.0 ±6.5
+49.3 ±0.9
+93.3 ±4.7
+26.0 ±5.9
+59.3 ±1.9
+82.0 ±4.3
+SigLIP2 FT
+95.3 ±0.9
+24.7 ±3.4
+58.7 ±7.5
+4.0 ±2.8
+68.7 ±0.9
+91.3 ±2.5
+VC-1 FT
+84.7 ±3.4
+35.3 ±3.4
+94.7 ±2.5
+0.7 ±0.9
+39.3 ±4.1
+92.7 ±3.4
+DINOv2 + state
+92.0 ±6.0
+46.0 ±2.0
+87.3 ±3.1
+38.0 ±5.3
+39.3 ±4.2
+88.0 ±5.3
+DINOv3 (320 px)
+83.3 ±4.2
+30.7 ±11.4
+70.7 ±5.8
+6.0 ±4.0
+22.0 ±3.5
+76.7 ±6.1
+Xiaomi-Robotics-1 L16
+98.0 ±1.6
+60.0 ±6.5
+85.3 ±4.1
+20.7 ±6.6
+66.0 ±5.9
+92.7 ±2.5
+Qwen3-VL L16
+88.7 ±2.5
+60.7 ±2.5
+96.0 ±0.0
+13.3 ±4.7
+49.3 ±3.8
+79.3 ±0.9
+RADIOv2.5 + state
+58.7 ±6.1
+35.3 ±3.1
+62.0 ±12.2
+43.3 ±11.0
+18.7 ±1.1
+68.0 ±4.0
+Table 29.
+RoboTwin multi-task (continued).
+Tasks W7–W12.
+Avg.
+is the twelve-task mean; uncertainty
+follows Section A.2.
+Encoder / setting
+W7
+W8
+W9
+W10
+W11
+W12
+Avg.
+VGGT-Ω
+48.0 ±1.6
+47.3 ±3.8
+14.0 ±4.3
+57.3 ±0.9
+48.0 ±7.1
+0.7 ±0.9
+50.0 ±1.3
+LingBot-Vision
+41.3 ±3.4
+40.7 ±6.6
+10.0 ±2.8
+36.0 ±1.6
+30.7 ±4.1
+0.0 ±0.0
+46.8 ±1.4
+SPA
+2.0 ±0.0
+5.3 ±1.9
+1.3 ±1.9
+22.0 ±8.6
+1.3 ±0.9
+0.0 ±0.0
+12.3 ±0.9
+DINOv2
+29.3 ±3.4
+51.3 ±1.9
+18.7 ±0.9
+47.3 ±1.9
+39.3 ±2.5
+2.0 ±2.8
+49.4 ±1.0
+DINOv3
+9.3 ±0.9
+25.3 ±6.6
+3.3 ±0.9
+31.3 ±7.7
+26.7 ±5.2
+1.3 ±0.9
+30.4 ±1.4
+MAE
+5.3 ±1.9
+22.7 ±6.6
+1.3 ±0.9
+33.3 ±12.3
+4.7 ±1.9
+1.3 ±0.9
+26.7 ±1.6
+V-JEPA 2.1
+8.0 ±0.0
+30.0 ±1.6
+1.3 ±0.9
+53.3 ±9.6
+38.0 ±7.1
+0.0 ±0.0
+39.6 ±1.3
+Xiaomi-Robotics-1
+22.0 ±4.9
+58.0 ±2.8
+24.0 ±4.3
+54.0 ±9.1
+74.7 ±5.0
+0.0 ±0.0
+53.2 ±1.3
+DepthVLM
+31.3 ±5.0
+43.3 ±0.9
+23.3 ±9.0
+48.0 ±2.8
+84.0 ±1.6
+2.7 ±0.9
+53.7 ±1.2
+Qwen3-VL
+31.3 ±3.4
+42.0 ±1.6
+7.3 ±3.4
+49.3 ±4.1
+77.3 ±2.5
+2.0 ±1.6
+51.4 ±1.2
+SigLIP2
+20.0 ±1.6
+30.7 ±2.5
+9.3 ±2.5
+49.3 ±2.5
+44.0 ±2.8
+4.0 ±0.0
+44.2 ±1.2
+InternViT
+18.7 ±0.9
+27.3 ±5.2
+4.7 ±2.5
+34.7 ±3.8
+26.0 ±2.8
+2.7 ±0.9
+30.9 ±1.3
+SigLIP
+12.7 ±4.1
+28.0 ±4.9
+0.0 ±0.0
+42.0 ±5.9
+24.0 ±7.1
+6.7 ±0.9
+28.4 ±1.4
+CLIP
+6.7 ±0.9
+16.7 ±0.9
+1.3 ±0.9
+17.3 ±5.0
+20.0 ±2.8
+0.0 ±0.0
+21.3 ±0.8
+VC-1
+12.0 ±1.6
+28.7 ±7.4
+2.7 ±0.9
+39.3 ±10.6
+10.0 ±2.8
+0.7 ±0.9
+25.1 ±1.5
+Voltron
+4.7 ±3.4
+17.3 ±4.1
+3.3 ±2.5
+30.0 ±7.5
+8.7 ±3.4
+0.0 ±0.0
+22.7 ±1.0
+Theia
+20.0 ±5.9
+44.7 ±2.5
+10.7 ±0.9
+52.7 ±0.9
+32.7 ±1.9
+2.0 ±1.6
+43.8 ±0.9
+C-RADIOv4
+25.3 ±9.0
+46.0 ±5.7
+6.7 ±1.9
+50.7 ±3.8
+48.7 ±1.9
+0.0 ±0.0
+45.2 ±1.4
+RADIOv2.5
+13.3 ±2.5
+24.0 ±0.0
+4.0 ±1.6
+26.7 ±5.0
+26.7 ±6.8
+1.3 ±1.9
+31.1 ±1.2
+ViT
+10.7 ±5.0
+13.3 ±1.9
+0.0 ±0.0
+30.0 ±4.3
+12.7 ±2.5
+0.0 ±0.0
+18.6 ±1.0
+VGGT-Ω FT
+58.7 ±6.2
+82.0 ±5.9
+77.3 ±2.5
+78.7 ±2.5
+69.3 ±5.7
+0.0 ±0.0
+76.1 ±1.2
+DINOv2 FT
+46.0 ±5.7
+70.0 ±4.3
+40.7 ±2.5
+76.0 ±7.1
+36.0 ±1.6
+0.7 ±0.9
+51.6 ±1.3
+DINOv3 FT
+38.0 ±4.9
+39.3 ±9.6
+29.3 ±0.9
+72.0 ±3.3
+36.0 ±1.6
+0.7 ±0.9
+48.6 ±1.3
+SigLIP2 FT
+32.0 ±5.9
+52.7 ±10.5
+25.3 ±5.7
+67.3 ±3.4
+64.7 ±3.8
+0.0 ±0.0
+48.7 ±1.4
+VC-1 FT
+13.3 ±4.7
+62.7 ±5.0
+7.3 ±0.9
+61.3 ±10.0
+36.0 ±2.8
+0.0 ±0.0
+44.0 ±1.2
+DINOv2 + state
+31.3 ±6.4
+46.0 ±6.9
+17.3 ±3.1
+48.7 ±7.6
+60.7 ±1.1
+2.7 ±1.1
+49.8 ±2.0
+DINOv3 (320 px)
+18.7 ±2.3
+26.7 ±4.6
+3.3 ±2.3
+42.7 ±2.3
+34.0 ±2.0
+0.7 ±1.1
+34.6 ±2.0
+Xiaomi-Robotics-1 L16
+16.7 ±0.9
+50.7 ±4.7
+18.7 ±5.7
+58.7 ±5.0
+66.0 ±5.9
+0.0 ±0.0
+52.8 ±1.4
+Qwen3-VL L16
+28.7 ±6.8
+47.3 ±6.6
+20.7 ±3.4
+45.3 ±10.0
+77.3 ±4.7
+2.0 ±1.6
+50.7 ±1.4
+RADIOv2.5 + state
+20.7 ±4.6
+32.7 ±8.3
+2.7 ±1.1
+36.7 ±3.1
+17.3 ±3.1
+0.7 ±1.1
+33.1 ±2.6
+36
+
+
+F.2 Demonstration and model scale
+Tables 30 to 38 give the per-task values behind Figures 10 and 5.
+Table 30. RoboCasa single-task demonstration sweep. Success (%); small type gives the exported evaluation deviation.
+Task means are averaged over C1–C4. Avg. averages C1–C4; uncertainty conventions are specified in Section A.2.
+Encoder / setting
+C1
+C2
+C3
+C4
+Avg.
+DINOv2 / 50 demos
+15.3 ±5.2
+24.0 ±1.6
+21.3 ±6.6
+3.3 ±1.9
+16.0 ±2.2
+DINOv2 / 100 demos
+36.7 ±6.6
+40.7 ±6.8
+24.7 ±0.9
+6.0 ±2.8
+27.0 ±2.5
+DINOv2 / 200 demos
+50.7 ±11.5
+55.3 ±7.4
+40.0 ±10.2
+14.0 ±1.6
+40.0 ±4.3
+DINOv2 / 500 demos
+57.3 ±5.2
+60.0 ±5.7
+44.0 ±1.6
+21.3 ±2.5
+45.7 ±2.1
+DINOv3 / 50 demos
+13.3 ±5.0
+20.0 ±1.6
+12.0 ±1.6
+2.0 ±1.6
+11.8 ±1.4
+DINOv3 / 100 demos
+38.0 ±3.3
+32.0 ±2.8
+29.3 ±6.8
+2.0 ±1.6
+25.3 ±2.0
+DINOv3 / 200 demos
+43.3 ±5.0
+43.3 ±2.5
+31.3 ±5.2
+12.0 ±3.3
+32.5 ±2.1
+DINOv3 / 500 demos
+49.3 ±3.8
+56.0 ±10.2
+48.0 ±4.3
+25.3 ±5.2
+44.7 ±3.2
+V-JEPA 2.1 / 50 demos
+10.7 ±7.4
+14.7 ±5.0
+14.0 ±2.8
+0.7 ±0.9
+10.0 ±2.4
+V-JEPA 2.1 / 100 demos
+24.0 ±6.5
+21.3 ±7.5
+24.7 ±7.7
+1.3 ±0.9
+17.8 ±3.2
+V-JEPA 2.1 / 200 demos
+36.7 ±4.1
+34.7 ±3.8
+31.3 ±2.5
+1.3 ±0.9
+26.0 ±1.6
+V-JEPA 2.1 / 500 demos
+42.0 ±7.1
+52.0 ±3.3
+33.3 ±1.9
+1.3 ±0.9
+32.2 ±2.0
+SigLIP2 / 50 demos
+12.7 ±4.7
+26.7 ±5.0
+8.0 ±3.3
+1.3 ±0.9
+12.2 ±1.9
+SigLIP2 / 100 demos
+31.3 ±2.5
+36.7 ±0.9
+23.3 ±11.5
+2.7 ±2.5
+23.5 ±3.0
+SigLIP2 / 200 demos
+44.7 ±2.5
+44.7 ±3.4
+36.0 ±2.8
+1.3 ±0.9
+31.7 ±1.3
+SigLIP2 / 500 demos
+49.3 ±4.7
+57.7 ±2.0
+39.3 ±5.7
+11.3 ±2.5
+39.4 ±2.0
+Table 31.
+RoboCasa multi-task demonstration sweep.
+Success (%); small type gives the exported evalua-
+tion deviation.
+Task IDs follow Table 23.
+Encoder / setting
+C1
+C2
+C3
+C4
+C5
+C6
+DINOv2 / 50 demos
+8.0 ±4.3
+4.0 ±1.6
+5.3 ±3.4
+6.0 ±2.8
+7.3 ±0.9
+3.3 ±2.5
+DINOv2 / 100 demos
+7.3 ±3.4
+4.7 ±1.9
+4.0 ±1.6
+12.0 ±4.3
+7.3 ±2.5
+8.0 ±3.3
+DINOv2 / 200 demos
+14.0 ±3.3
+15.3 ±5.2
+16.7 ±0.9
+16.0 ±2.8
+11.3 ±0.9
+10.0 ±0.0
+DINOv2 / 500 demos
+24.7 ±4.1
+22.7 ±2.5
+28.7 ±6.6
+25.3 ±5.2
+26.7 ±5.0
+16.0 ±4.3
+DINOv3 / 50 demos
+2.0 ±1.6
+2.0 ±2.8
+9.3 ±2.5
+4.0 ±3.3
+2.7 ±0.9
+0.7 ±0.9
+DINOv3 / 100 demos
+11.3 ±3.8
+6.7 ±1.9
+8.0 ±0.0
+2.7 ±2.5
+6.7 ±3.4
+3.3 ±3.4
+DINOv3 / 200 demos
+8.7 ±3.4
+8.7 ±1.9
+18.0 ±4.3
+12.7 ±3.4
+24.0 ±7.5
+7.3 ±0.9
+DINOv3 / 500 demos
+26.0 ±3.3
+30.7 ±5.2
+26.0 ±5.9
+16.7 ±0.9
+44.0 ±4.9
+9.3 ±3.4
+SigLIP2 / 50 demos
+4.7 ±2.5
+4.7 ±3.4
+4.0 ±1.6
+4.0 ±0.0
+5.3 ±3.4
+3.3 ±0.9
+SigLIP2 / 100 demos
+10.0 ±4.9
+8.7 ±2.5
+7.3 ±3.4
+8.7 ±3.8
+7.3 ±1.9
+6.0 ±0.0
+SigLIP2 / 200 demos
+17.3 ±0.9
+14.7 ±1.9
+13.0 ±6.5
+14.7 ±4.1
+16.0 ±4.3
+7.3 ±4.1
+SigLIP2 / 500 demos
+24.0 ±5.9
+26.0 ±4.3
+26.0 ±1.6
+22.7 ±9.6
+32.7 ±5.2
+14.0 ±5.9
+VC-1 / 50 demos
+4.0 ±0.0
+4.0 ±1.6
+5.3 ±0.9
+2.0 ±1.6
+8.0 ±1.6
+1.3 ±1.9
+VC-1 / 100 demos
+8.7 ±0.9
+4.7 ±0.9
+9.3 ±2.5
+4.0 ±3.3
+13.3 ±4.1
+2.0 ±0.0
+VC-1 / 200 demos
+12.7 ±6.6
+21.3 ±5.0
+15.3 ±5.0
+8.0 ±1.6
+18.0 ±3.3
+5.3 ±3.4
+VC-1 / 500 demos
+29.3 ±5.7
+32.0 ±8.6
+29.3 ±3.8
+18.7 ±2.5
+32.0 ±9.1
+8.7 ±2.5
+37
+
+
+Table 32.
+RoboCasa multi-task demonstration sweep.
+Success (%); small type gives the exported evalu-
+ation deviation.
+Task IDs follow Table 23.
+Avg.
+averages all twelve tasks across both parts; uncertainty
+conventions are specified in Section A.2.
+Encoder / setting
+C7
+C8
+C9
+C10
+C11
+C12
+Avg.
+DINOv2 / 50 demos
+4.7 ±3.4
+2.0 ±0.0
+5.3 ±0.9
+11.3 ±2.5
+7.3 ±1.9
+1.3 ±1.9
+5.5 ±0.7
+DINOv2 / 100 demos
+8.7 ±4.1
+4.7 ±2.5
+13.3 ±4.1
+11.3 ±1.9
+15.3 ±1.9
+6.0 ±2.8
+8.6 ±0.9
+DINOv2 / 200 demos
+14.0 ±4.3
+11.3 ±0.9
+18.0 ±2.8
+24.0 ±5.7
+14.0 ±6.5
+10.0 ±4.3
+14.6 ±1.1
+DINOv2 / 500 demos
+18.0 ±6.5
+6.7 ±0.9
+24.0 ±3.3
+26.0 ±3.3
+22.7 ±9.0
+14.7 ±0.9
+21.3 ±1.4
+DINOv3 / 50 demos
+2.0 ±1.6
+1.3 ±1.9
+2.7 ±0.9
+6.0 ±5.7
+3.3 ±0.9
+0.7 ±0.9
+3.1 ±0.7
+DINOv3 / 100 demos
+6.7 ±1.9
+4.0 ±0.0
+9.3 ±0.9
+12.0 ±3.3
+8.0 ±1.6
+4.0 ±1.6
+6.9 ±0.7
+DINOv3 / 200 demos
+9.3 ±5.0
+8.7 ±1.9
+14.0 ±7.1
+19.3 ±6.2
+14.0 ±7.1
+6.0 ±4.3
+12.6 ±1.4
+DINOv3 / 500 demos
+16.7 ±5.7
+7.3 ±1.9
+18.7 ±1.9
+31.3 ±3.8
+26.7 ±6.6
+14.0 ±1.6
+22.3 ±1.2
+SigLIP2 / 50 demos
+0.7 ±0.9
+0.0 ±0.0
+6.7 ±0.9
+9.3 ±4.1
+7.3 ±4.7
+0.0 ±0.0
+4.2 ±0.7
+SigLIP2 / 100 demos
+13.3 ±3.4
+3.3 ±1.9
+7.3 ±1.9
+10.7 ±4.1
+8.7 ±0.9
+5.3 ±0.9
+8.1 ±0.8
+SigLIP2 / 200 demos
+14.0 ±3.3
+7.3 ±3.4
+16.0 ±4.9
+16.0 ±1.6
+18.7 ±1.9
+6.7 ±8.1
+13.5 ±1.2
+SigLIP2 / 500 demos
+13.3 ±0.9
+14.7 ±7.5
+28.7 ±0.9
+23.3 ±0.9
+26.7 ±4.1
+11.3 ±3.8
+21.9 ±1.4
+VC-1 / 50 demos
+5.3 ±0.9
+3.3 ±2.5
+4.0 ±1.6
+4.0 ±3.3
+5.3 ±3.4
+1.3 ±0.9
+4.0 ±0.6
+VC-1 / 100 demos
+5.3 ±0.9
+3.3 ±0.9
+6.7 ±2.5
+12.7 ±3.8
+9.3 ±6.2
+2.7 ±2.5
+6.8 ±0.8
+VC-1 / 200 demos
+8.7 ±6.6
+2.0 ±1.6
+12.0 ±4.3
+18.7 ±3.4
+20.0 ±1.6
+8.7 ±3.8
+12.6 ±1.2
+VC-1 / 500 demos
+12.0 ±5.7
+4.7 ±0.9
+15.3 ±3.4
+22.0 ±4.3
+29.3 ±5.2
+14.0 ±0.0
+20.6 ±1.5
+Table 33.
+RoboTwin multi-task demonstration sweep.
+Success (%); small type gives the exported evalua-
+tion deviation.
+Task IDs follow Table 23.
+Encoder / setting
+W1
+W2
+W3
+W4
+W5
+W6
+DINOv2 / 50 demos
+60.7 ±5.2
+10.0 ±1.6
+56.7 ±4.1
+0.0 ±0.0
+4.0 ±2.8
+48.7 ±3.4
+DINOv2 / 100 demos
+56.7 ±5.2
+22.0 ±2.8
+72.0 ±2.8
+0.7 ±0.9
+14.7 ±3.8
+70.0 ±1.6
+DINOv2 / 200 demos
+86.0 ±4.9
+35.3 ±4.1
+73.3 ±7.4
+0.0 ±0.0
+16.0 ±4.3
+72.0 ±1.6
+DINOv3 / 50 demos
+52.0 ±1.6
+13.3 ±2.5
+34.7 ±1.9
+0.7 ±0.9
+3.3 ±2.5
+44.7 ±4.1
+DINOv3 / 100 demos
+58.7 ±3.4
+26.7 ±0.9
+50.7 ±5.0
+6.0 ±0.0
+6.7 ±2.5
+54.7 ±4.1
+DINOv3 / 200 demos
+60.7 ±2.5
+37.3 ±4.1
+53.3 ±1.9
+10.0 ±1.6
+8.7 ±0.9
+54.7 ±7.4
+V-JEPA 2.1 / 50 demos
+34.0 ±3.3
+5.3 ±0.9
+28.0 ±8.6
+0.0 ±0.0
+4.0 ±4.3
+33.3 ±4.1
+V-JEPA 2.1 / 100 demos
+38.7 ±5.7
+13.3 ±5.2
+22.0 ±3.3
+0.7 ±0.9
+7.3 ±2.5
+48.7 ±0.9
+V-JEPA 2.1 / 200 demos
+70.7 ±5.0
+24.7 ±5.7
+54.0 ±5.9
+1.3 ±0.9
+10.0 ±1.6
+67.3 ±3.8
+SigLIP2 / 50 demos
+29.3 ±8.2
+2.0 ±1.6
+22.0 ±3.3
+0.0 ±0.0
+3.3 ±1.9
+24.7 ±10.6
+SigLIP2 / 100 demos
+46.0 ±4.9
+7.3 ±3.4
+41.3 ±2.5
+0.0 ±0.0
+15.3 ±3.8
+27.3 ±4.7
+SigLIP2 / 200 demos
+81.3 ±5.0
+27.3 ±5.0
+65.3 ±3.8
+2.0 ±1.6
+35.3 ±5.0
+50.7 ±2.5
+Table 34.
+RoboTwin multi-task demonstration sweep.
+Success (%); small type gives the exported evalu-
+ation deviation.
+Task IDs follow Table 23.
+Avg.
+averages all twelve tasks across both parts; uncertainty
+conventions are specified in Section A.2.
+Encoder / setting
+W7
+W8
+W9
+W10
+W11
+W12
+Avg.
+DINOv2 / 50 demos
+0.7 ±0.9
+4.0 ±0.0
+0.0 ±0.0
+22.7 ±9.0
+10.7 ±3.4
+0.0 ±0.0
+18.2 ±1.1
+DINOv2 / 100 demos
+2.7 ±0.9
+12.0 ±6.5
+2.7 ±2.5
+37.3 ±3.8
+10.0 ±2.8
+0.0 ±0.0
+25.1 ±1.0
+DINOv2 / 200 demos
+4.0 ±3.3
+22.7 ±4.1
+6.7 ±1.9
+48.0 ±3.3
+18.0 ±3.3
+0.7 ±0.9
+31.9 ±1.1
+DINOv3 / 50 demos
+0.0 ±0.0
+6.0 ±4.3
+0.0 ±0.0
+12.7 ±2.5
+4.7 ±2.5
+0.0 ±0.0
+14.3 ±0.7
+DINOv3 / 100 demos
+2.0 ±1.6
+9.3 ±3.4
+0.0 ±0.0
+10.7 ±1.9
+9.3 ±0.9
+0.0 ±0.0
+19.6 ±0.7
+DINOv3 / 200 demos
+6.7 ±1.9
+27.3 ±3.4
+0.7 ±0.9
+14.0 ±1.6
+18.7 ±4.7
+0.7 ±0.9
+24.4 ±0.9
+V-JEPA 2.1 / 50 demos
+1.3 ±0.9
+1.3 ±1.9
+0.0 ±0.0
+11.3 ±1.9
+3.3 ±0.9
+0.7 ±0.9
+10.2 ±1.0
+V-JEPA 2.1 / 100 demos
+8.7 ±0.9
+6.7 ±3.4
+0.0 ±0.0
+16.0 ±6.5
+2.0 ±1.6
+0.0 ±0.0
+13.7 ±1.0
+V-JEPA 2.1 / 200 demos
+16.7 ±0.9
+12.7 ±3.4
+0.7 ±0.9
+24.7 ±0.9
+4.7 ±0.9
+1.3 ±0.9
+24.1 ±0.9
+SigLIP2 / 50 demos
+2.0 ±0.0
+1.3 ±0.9
+0.0 ±0.0
+23.3 ±5.0
+3.3 ±3.4
+0.0 ±0.0
+9.3 ±1.3
+SigLIP2 / 100 demos
+2.0 ±1.6
+8.0 ±1.6
+3.3 ±0.9
+31.3 ±2.5
+18.0 ±0.0
+0.7 ±0.9
+16.7 ±0.8
+SigLIP2 / 200 demos
+6.7 ±4.1
+27.3 ±1.9
+5.3 ±3.4
+40.7 ±6.2
+30.7 ±1.9
+1.3 ±0.9
+31.2 ±1.1
+38
+
+
+Table 35.
+RoboCasa model-size sweep.
+Success (%); small type gives the exported evaluation deviation.
+Task IDs follow Table 23.
+Encoder / setting
+C1
+C2
+C3
+C4
+C5
+C6
+DINOv2 S
+32.0 ±7.5
+40.0 ±2.8
+24.0 ±1.6
+25.3 ±2.5
+44.0 ±4.3
+13.3 ±7.5
+DINOv2 L
+31.3 ±4.1
+44.7 ±3.4
+22.7 ±4.1
+28.0 ±7.5
+50.7 ±11.5
+29.3 ±6.6
+DINOv2 g
+35.3 ±7.7
+36.0 ±5.9
+34.0 ±7.5
+30.7 ±3.4
+42.7 ±2.5
+21.3 ±2.5
+DINOv3 S
+26.0 ±3.3
+28.7 ±7.7
+17.3 ±1.9
+14.0 ±1.6
+33.3 ±4.1
+9.3 ±5.0
+DINOv3 L
+47.3 ±6.6
+28.7 ±6.8
+35.3 ±5.0
+21.3 ±3.8
+32.7 ±3.8
+15.3 ±4.1
+DINOv3 H+
+44.7 ±4.1
+23.3 ±1.9
+24.0 ±1.6
+24.0 ±3.3
+32.0 ±1.6
+18.7 ±3.4
+V-JEPA 2.1 L
+40.7 ±9.3
+44.0 ±2.8
+34.0 ±3.3
+38.0 ±2.8
+53.3 ±7.4
+32.0 ±7.5
+V-JEPA 2.1 g
+44.0 ±13.0
+46.0 ±4.9
+37.3 ±2.5
+36.7 ±3.8
+56.0 ±2.8
+21.3 ±1.9
+VC-1 L
+40.0 ±4.3
+57.3 ±8.1
+31.3 ±2.5
+27.3 ±6.6
+44.0 ±7.1
+22.0 ±1.6
+Table 36. RoboCasa model-size sweep. Success (%); small type gives the exported evaluation deviation. Task IDs
+follow Table 23. Avg. averages all twelve tasks across both parts; uncertainty conventions are specified in Section A.2.
+Encoder / setting
+C7
+C8
+C9
+C10
+C11
+C12
+Avg.
+DINOv2 S
+14.7 ±3.4
+16.7 ±9.8
+30.0 ±4.3
+27.3 ±3.4
+42.0 ±4.9
+19.3 ±2.5
+27.4 ±1.5
+DINOv2 L
+14.0 ±5.9
+9.3 ±0.9
+30.0 ±8.5
+30.0 ±5.9
+24.7 ±3.4
+20.7 ±8.2
+27.9 ±1.9
+DINOv2 g
+19.3 ±4.1
+12.0 ±0.0
+33.3 ±9.8
+26.7 ±5.2
+24.0 ±0.0
+25.3 ±1.9
+28.4 ±1.5
+DINOv3 S
+12.7 ±4.7
+6.7 ±2.5
+18.0 ±3.3
+27.3 ±6.8
+21.3 ±2.5
+11.3 ±2.5
+18.8 ±1.2
+DINOv3 L
+13.3 ±5.2
+10.7 ±3.8
+21.3 ±2.5
+26.0 ±5.9
+22.7 ±2.5
+17.3 ±3.4
+24.3 ±1.3
+DINOv3 H+
+16.7 ±1.9
+14.7 ±1.9
+22.7 ±1.9
+25.3 ±7.5
+31.3 ±4.1
+20.0 ±3.3
+24.8 ±1.0
+V-JEPA 2.1 L
+17.3 ±5.7
+20.0 ±8.2
+39.3 ±9.0
+43.3 ±1.9
+40.0 ±8.6
+22.0 ±4.3
+35.3 ±1.9
+V-JEPA 2.1 g
+22.7 ±2.5
+22.0 ±4.9
+36.0 ±3.3
+42.0 ±1.6
+40.7 ±5.7
+30.0 ±4.9
+36.2 ±1.5
+VC-1 L
+16.7 ±7.7
+8.7 ±3.4
+30.0 ±4.3
+41.3 ±3.4
+39.3 ±3.4
+20.7 ±7.7
+31.6 ±1.6
+Table 37.
+RoboTwin model-size sweep.
+Success (%); small type gives the exported evaluation deviation.
+Task IDs follow Table 23.
+Encoder / setting
+W1
+W2
+W3
+W4
+W5
+W6
+DINOv2 S
+84.0 ±8.2
+32.7 ±4.1
+90.0 ±0.0
+18.7 ±6.2
+46.0 ±7.1
+82.0 ±3.3
+DINOv2 L
+92.0 ±0.0
+71.3 ±3.4
+93.3 ±1.9
+28.7 ±0.9
+33.3 ±2.5
+96.0 ±2.8
+DINOv2 g
+80.7 ±2.5
+60.0 ±3.3
+93.3 ±0.9
+34.0 ±4.3
+34.7 ±2.5
+90.7 ±0.9
+DINOv3 S
+52.7 ±8.2
+31.3 ±3.8
+46.0 ±6.5
+8.0 ±1.6
+21.3 ±6.6
+54.7 ±2.5
+DINOv3 L
+73.3 ±6.2
+29.3 ±5.0
+58.7 ±2.5
+15.3 ±5.2
+21.3 ±0.9
+63.3 ±5.0
+DINOv3 H+
+75.3 ±1.9
+40.0 ±7.5
+72.0 ±7.5
+20.7 ±5.0
+22.7 ±5.2
+50.7 ±5.0
+V-JEPA 2.1 L
+73.3 ±2.5
+12.0 ±0.0
+34.7 ±0.9
+4.7 ±3.4
+40.7 ±3.8
+84.0 ±7.5
+V-JEPA 2.1 g
+97.3 ±1.9
+41.3 ±3.8
+96.7 ±0.9
+5.3 ±0.9
+67.3 ±5.0
+96.7 ±2.5
+VC-1 L
+77.3 ±6.2
+25.3 ±1.9
+64.7 ±0.9
+0.0 ±0.0
+24.7 ±8.2
+74.0 ±3.3
+Table 38. RoboTwin model-size sweep. Success (%); small type gives the exported evaluation deviation. Task IDs
+follow Table 23. Avg. averages all twelve tasks across both parts; uncertainty conventions are specified in Section A.2.
+Encoder / setting
+W7
+W8
+W9
+W10
+W11
+W12
+Avg.
+DINOv2 S
+18.7 ±5.7
+45.3 ±7.4
+9.3 ±2.5
+50.0 ±5.9
+39.3 ±11.1
+6.0 ±1.6
+43.5 ±1.7
+DINOv2 L
+34.7 ±6.6
+49.3 ±4.1
+18.0 ±5.7
+34.0 ±9.1
+62.0 ±1.6
+0.7 ±0.9
+51.1 ±1.2
+DINOv2 g
+22.0 ±4.9
+50.0 ±3.3
+15.3 ±5.2
+59.3 ±2.5
+64.0 ±4.3
+0.0 ±0.0
+50.3 ±0.9
+DINOv3 S
+12.0 ±1.6
+16.7 ±0.9
+0.0 ±0.0
+29.3 ±2.5
+22.0 ±1.6
+0.7 ±0.9
+24.6 ±1.1
+DINOv3 L
+14.0 ±4.9
+28.7 ±2.5
+2.0 ±1.6
+26.0 ±2.8
+13.3 ±3.4
+0.0 ±0.0
+28.8 ±1.1
+DINOv3 H+
+15.3 ±4.7
+26.7 ±4.1
+0.7 ±0.9
+27.3 ±2.5
+15.3 ±3.4
+0.7 ±0.9
+30.6 ±1.3
+V-JEPA 2.1 L
+2.0 ±1.6
+57.3 ±7.7
+0.0 ±0.0
+61.3 ±3.4
+82.0 ±1.6
+0.0 ±0.0
+37.7 ±1.1
+V-JEPA 2.1 g
+36.0 ±3.3
+64.7 ±3.4
+18.7 ±0.9
+61.3 ±7.4
+83.3 ±2.5
+2.0 ±0.0
+55.9 ±1.0
+VC-1 L
+12.0 ±1.6
+30.0 ±5.7
+3.3 ±2.5
+43.3 ±8.4
+55.3 ±5.0
+0.0 ±0.0
+34.2 ±1.3
+39

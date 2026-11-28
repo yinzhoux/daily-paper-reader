@@ -1,0 +1,954 @@
+Cite as: Madeleine Nouri, Gelareh Mohammadi, and Francisco Cruz. Demonstration-Free Skill Composition
+for Navigation and Manipulation. Proceedings of the Australasian Conference on Robotics and Automation
+(ACRA), 2026.
+Demonstration-Free Skill Composition for Navigation and Manipulation
+Madeleine Nouri1, Gelareh Mohammadi1, Francisco Cruz1,2
+1School of Computer Science and Engineering, University of New South Wales, Sydney, Australia
+2Escuela de Ingeniería, Universidad Central de Chile, Santiago, Chile
+{m.nouri, g.mohammadi, f.cruz}@unsw.edu.au
+Corresponding author: Madeleine Nouri
+Abstract
+Hierarchical reinforcement learning enables se-
+quential tasks to be represented as composi-
+tions of separately trained skills.
+This pa-
+per evaluates demonstration-free hierarchical
+pipelines for MiniGrid navigation and robotic
+manipulation,
+comparing their training re-
+quirements and task performance with flat re-
+inforcement learning baselines.
+The evalua-
+tion concerns complete pipelines with task-
+specific observation, reward and control struc-
+tures. In navigation, two parameterised skills
+are reused across unseen FourRooms layouts
+under manually specified high-level plans. In
+manipulation, reaching, grasp alignment and
+lifting are trained separately, with downstream
+skills initialised from states collected during
+predecessor rollouts.
+Across unseen naviga-
+tion layouts, the hierarchical pipeline sub-
+stantially outperforms the evaluated flat DQN
+baselines while requiring fewer training in-
+teractions.
+In manipulation, the hierarchi-
+cal chain requires fewer training steps than
+flat SAC and exhibits lower observed varia-
+tion across seeds.
+The frozen Pick and Lift
+skills are further reused for stacking by train-
+ing an additional Place skill. Code and videos
+are available at https://madeleinenouri.
+github.io/acra-skill-composition/.
+Keywords: Hierarchical Reinforcement Learning, Skill
+Composition, Robotic Manipulation
+1
+Introduction
+Tasks requiring an extended sequence of decisions can be
+decomposed into a sequence of primitive behaviours. Ex-
+amples include transitions between rooms in navigation
+and sequences of reaching, grasping, lifting, transporting
+and placing in manipulation. Flat reinforcement learn-
+ing treats the full sequence as a single control problem,
+which can lead to poor sample efficiency when explo-
+ration must discover a long chain of behaviours from a
+sparse terminal reward [Hutsebaut-Buysse et al., 2022].
+Hierarchical reinforcement learning (HRL) offers a
+structured alternative in which the task is decomposed
+into reusable skills, each operating over a shorter horizon
+with a localised reward signal, and a high-level controller
+that sequences the skills at execution time [Sutton et al.,
+1999; Bacon et al., 2016]. Some skill-chaining methods
+improve composition reliability by aligning upstream ter-
+mination distributions with downstream initiation distri-
+butions using expert demonstrations as a reference [Lee
+et al., 2021; Chen et al., 2024]. Another approach uses
+engineered rewards instead of demonstrations [Kim et
+al., 2023; Kwon et al., 2024]. Trained skills can also be
+reused as components of new tasks [Hutsebaut-Buysse
+et al., 2022]. This paper evaluates demonstration-free
+skill pipelines in navigation and manipulation, examin-
+ing training requirements, task performance and reuse of
+the trained policies.
+The contributions of this paper are:
+1. An empirical evaluation of demonstration-free hier-
+archical pipelines for discrete navigation and contin-
+uous manipulation, in which each downstream skill
+is trained on reset states covering its predecessor’s
+success states.
+2. A comparison of pipeline performance and training
+interactions with the chosen flat baselines, counting
+cumulative training steps across all skills.
+3. An evaluation of skill reuse on previously unseen
+navigation layouts without retraining, and exten-
+sion of manipulation to a stacking task through an
+additional Place skill.
+arXiv:2611.25462v1  [cs.RO]  19 Nov 2026
+
+
+2
+Related Work
+2.1
+Skill Chaining and Transition
+Alignment
+Temporal abstraction is commonly formalised through
+the options framework [Sutton et al., 1999], in which
+each option comprises an initiation set,
+an intra-
+option policy, and a termination condition.
+Option-
+Critic [Bacon et al., 2016] learns such options end-to-
+end. Konidaris and Barto [Konidaris and Barto, 2009]
+introduced skill chaining, training each new skill to reach
+the initiation region of the next, and a later extension
+learns neural initiation classifiers to select among op-
+tions [Bagaria and Konidaris, 2020].
+These methods
+identify feasible handoff states but do not constrain the
+termination distribution of upstream skills.
+When independently trained skills fail to compose,
+a line of work explicitly aligns their interface.
+Lee et
+al. [Lee et al., 2019] learn a transition policy that bridges
+adjacent skills, Byun and Perrault [Byun and Perrault,
+2022] cast this as distribution matching between up-
+stream terminations and downstream initiations, and
+Chen et al. [Chen et al., 2023] chain dexterous manipu-
+lation policies via learned transition controllers. Policy
+sequencing [Clegg et al., 2018] trains each new skill from
+terminal states produced by the preceding skill. Adver-
+sarial methods instead regularise the upstream termi-
+nation distribution directly: T-STAR [Lee et al., 2021]
+uses a GAN-style discriminator targeting the down-
+stream skill’s initiation distribution, and SCaR [Chen et
+al., 2024] extends this with bi-directional regularisation.
+These adversarial methods depend on expert demonstra-
+tions as the reference distribution for alignment.
+2.2
+Reward-Engineered Task
+Decomposition
+The most closely related demonstration-free approaches
+replace demonstrations with engineered rewards and in-
+dependently trained Soft Actor-Critic [Haarnoja et al.,
+2018] subpolicies. Kim et al. [Kim et al., 2023] decom-
+pose Robosuite pick-and-place into reaching and grasp-
+ing subtasks, encoding part of the contact alignment
+specification in the upstream reaching reward and exe-
+cuting the grasp through rule-based gripper logic. Kwon
+et al. [Kwon et al., 2024] extend the same template to
+door opening, block stacking, and nut assembly.
+Our manipulation pipeline belongs to this family, with
+separate policies for reaching, grasp alignment and lift-
+ing.
+In Kim et al.’s pick-and-place and Kwon et al.’s
+block-stacking pipelines, the reaching reward encourages
+poses suitable for scripted grasping. Our pipeline instead
+trains grasp alignment as a separate policy and separates
+lifting from placement, while retaining scripted closure
+and initial lifting. This decomposition allows us to eval-
+uate extension to stacking with the existing Pick and
+Lift policies frozen and only Place newly trained.
+3
+Method
+This section describes the skill decomposition and execu-
+tion procedure. The details specific to each environment,
+including state and action spaces, reward functions and
+success criteria, are provided in Section 4.
+3.1
+Problem Formulation
+A task is a Markov decision process (MDP) M =
+(S, A, P, r, γ) with states S, actions A, transition ker-
+nel P(s′ | s, a), reward r, and discount γ ∈[0, 1). A
+flat agent learns a single policy π : S →A maximising
+Eπ[P
+t γtr(st, at)].
+We represent task execution as a sequence of K skill
+invocations, τ1 →· · · →τK.
+The sequence may in-
+voke the same parameterised policy multiple times with
+different task parameters. Following the options frame-
+work [Sutton et al., 1999], each skill is a triple τi =
+⟨Ii, πi, βi⟩, where Ii ⊆S is the initiation set (the states
+from which τi begins), πi is the intra-skill policy (which
+may use a skill-specific observation and action space),
+and the termination condition is the indicator of a suc-
+cess set Gi ⊆S, βi(s) = 1[s ∈Gi]. A high-level con-
+troller h selects which skill is active. Here h follows a
+prescribed sequence of skill invocations. Navigation uses
+a manually specified plan for each layout, while Pick and
+Lift uses a fixed reaching, grasp alignment and lifting se-
+quence. In general, h may be a learned policy over skills
+or a symbolic planner.
+A skill may be parameterised, πi(a | s, g), where g
+is a task parameter such as a target location or direc-
+tion, so that a single policy represents multiple related
+behaviours. We use parameterised skills in the discrete
+domain and unparameterised skills in the continuous do-
+main.
+3.2
+Skill Training and Execution
+Reliable execution requires each skill to terminate in
+states from which its successor can begin. Following pol-
+icy sequencing [Clegg et al., 2018], downstream skills are
+trained from reset states chosen to cover successful pre-
+decessor handoffs. Reset distributions are specified from
+task geometry or defined by uniform sampling of suc-
+cessful predecessor terminal simulator states.
+We assess composition performance through condi-
+tional in-chain success rates and comparisons with stan-
+dalone skill performance.
+At test time, the high-level controller h executes τ1
+from s0 ∼d0. A monitor evaluates the active skill’s ter-
+mination condition, and when βi(s) = 1 control transfers
+to τi+1. The chain succeeds if τK reaches GK.
+
+
+Algorithm 1 Sequential skill training with success-state
+resets
+Require: Skills τ1, . . . , τK, rewards ri, success sets Gi,
+initial distribution d0, rollouts N, threshold η, eval-
+uation episodes M
+1: µ1 ←d0
+2: for i = 1 to K do
+3:
+Train πi from s0 ∼µi until the stopping criterion
+is met
+4:
+if i < K then
+5:
+Run N deterministic rollouts of πi from s0 ∼
+µi
+6:
+Store the full simulator state at the first suc-
+cessful termination of each rollout in pool Bi
+7:
+µi+1 ←Uniform(Bi)
+8:
+end if
+9: end for
+10: return π1, . . . , πK
+4
+Experiments
+We evaluate the approach in two domains: discrete nav-
+igation and continuous robotic manipulation. Each sub-
+section specifies its own scenario, MDP, rewards, and
+training details.
+4.1
+Experiment 1: Discrete Navigation
+We
+use
+the
+MiniGrid
+FourRooms
+environ-
+ment [Chevalier-Boisvert et al.,
+2023] (Fig. 1):
+a
+19 × 19 grid partitioned into four rooms by interior
+walls, with a single doorway connecting each adjacent
+pair of rooms. Each episode starts the agent at a fixed
+position. It must reach a goal tile that may lie in another
+room, crossing one or more doorways. The action space
+is restricted to three primitives, turn left, turn right,
+move forward. Episodes terminate on reaching the goal
+or after 800 steps.
+To measure generalisation, we use
+a pool of 20 training layouts and 10 previously unseen
+evaluation layouts,
+generated deterministically from
+fixed global seeds. Door and goal positions vary across
+layouts.
+Each method is trained over 20 independent
+random seeds and evaluated on the 10 previously unseen
+layouts with 50 episodes per layout per seed.
+All conditions share the same action space, determinis-
+tic transition dynamics (turn actions rotate 90◦in place,
+and move forward advances one cell unless blocked, in
+which case the agent remains in place), and discount
+γ = 0.99. Observations and rewards differ per method.
+Observation definitions and training hyperparameters
+are given below.
+Doorway-augmented flat DQN. A single flat DQN
+with no decomposition receives a 13-dimensional obser-
+vation: normalised agent pose, goal position, and the
+coordinates of all four doorways detected at reset. The
+Figure 1: MiniGrid FourRooms.
+The agent (red tri-
+angle) navigates from its start to the goal (green tile),
+crossing one or more doorways. Door and goal positions
+vary across layout seeds. The hierarchical plan is a to-
+ken sequence of GoTo/CrossDoor subtasks ending at the
+goal.
+flat agent receives the same doorway coordinates as the
+hierarchical planner. Comparison with the vanilla flat
+baseline tests the effect of including these coordinates.
+Reward is r = −0.002 + 1[goal reached].
+HRL: GoTo subpolicy (parameterised).
+GoTo
+navigates to a target cell (a doorway approach cell
+or the goal) within the current room, from an 8-
+dimensional observation in local room coordinates: agent
+pose, clipped displacement to target, and egocentric free-
+space indicators.
+The trained policy is reused across
+all rooms and previously unseen layouts, with a high-
+level plan supplied per layout. Reward is r = −0.002 +
+1[target reached].
+HRL:
+CrossDoor
+subpolicy
+(parameterised).
+CrossDoor crosses a single doorway from the approach
+cell to the entry cell, always initialised at the approach
+cell.
+Its 8-dimensional observation appends a one-hot
+code for the crossing direction to the free-space indica-
+tors, allowing a single policy to cover all four directions.
+Reward is r = −0.002 + 1[entry cell reached].
+HRL: high-level planner.
+The learned subpolicies
+are sequenced using a manually specified plan for each
+layout.
+Observation Spaces.
+All observation components are normalised to [0, 1]. Dis-
+placements are affinely rescaled from [−c, c] to [0, 1],
+where c = 6 cells is the clipping bound.
+Superscript
+n denotes a normalised value and subscript L a quantity
+in local room coordinates.
+ax, ay are the agent’s grid
+
+
+position, d its facing direction, and gx, gy the goal posi-
+tion. ffront, fleft, fright ∈{0, 1} are egocentric free-space
+indicators, set to 1 if the adjacent cell in that direction
+is traversable.
+Doorway-augmented flat DQN (13 dimensions).
+o = [an
+x, an
+y, dn, gn
+x, gn
+y ,
+dx
+1, dy
+1, . . . , dx
+4, dy
+4],
+The observation contains the normalised agent pose, goal
+position and coordinates of the four doorways d1, . . . , d4
+detected at each reset. The flat DQN used in the paired
+comparison below does not include the eight doorway
+coordinates, leaving 5 dimensions.
+GoTo subpolicy (8 dimensions).
+o = [an
+xL, an
+yL, ∆xn
+L, ∆yn
+L, dn,
+ffront, fleft, fright],
+where the agent position and the displacement to the
+target (∆xL, ∆yL), clipped to ±6 cells, are expressed in
+local room coordinates.
+CrossDoor subpolicy (8 dimensions).
+o = [dn, ffront, fleft, fright, ed∗],
+where ed∗∈{0, 1}4 one-hot encodes the required cross-
+ing direction (right, down, left, or up). CrossDoor drops
+the positional and displacement features of GoTo, since
+it always starts at the doorway approach cell.
+Training Details.
+All
+policies
+are
+trained
+with
+Deep
+Q-Networks
+(DQN) [Mnih et al., 2013] via Stable-Baselines3 [Raffin
+et al., 2021], chosen for the discrete action space. The
+GoTo subpolicy is trained on a single fixed room using
+local coordinates and reused across rooms. CrossDoor
+is trained across the 20 training layouts to expose it to
+varied approach configurations.
+All discrete-domain policies use the hyperparameters
+in Table 1. CrossDoor episodes are capped at 15 steps.
+Each skill is trained until its rolling success rate over
+the last 200 training episodes reaches η = 0.95, with a
+minimum of 300 completed episodes.
+Rolling training
+success rates are measured under the exploration policy.
+All reported results use deterministic evaluation.
+Navigation reset distributions are specified from room
+and doorway geometry, without constructing a sampled
+state pool.
+GoTo’s success condition is satisfied on
+reaching its commanded target. For a doorway target, its
+terminal position is the approach cell. CrossDoor is ini-
+tialised there with uniformly random orientation. GoTo
+Hyperparameter
+Value
+Training budget, flat baselines
+500,000
+Training budget, GoTo
+50,000
+Training budget, CrossDoor
+50,000
+Learning rate
+3 × 10−4
+Replay buffer size
+200,000
+Learning starts
+5,000
+Batch size
+256
+Train frequency
+every 4 steps
+Discount factor (γ)
+0.99
+Target network update interval
+2,000 steps
+Exploration fraction
+0.3
+Final exploration rate
+0.05
+Table 1: DQN hyperparameters for the discrete experi-
+ment.
+resets uniformly over the free cells of a room, which con-
+tain the entry cells where CrossDoor terminates. Ap-
+proach and entry cells follow from the wall and doorway
+geometry of each layout.
+Results.
+Both subpolicies converge within ∼50,000 steps in re-
+turn and episode length (Fig. 2(a,b)), so skill training
+costs ∼100,000 steps in total, whereas the flat baseline,
+at its full 500,000-step budget, reaches only 0.020 on pre-
+viously unseen layouts (Fig. 2(c)), HRL achieves a mean
+success rate of 0.555 (95 % CI ±0.069, 20 seeds, 10 lay-
+outs), more than an order of magnitude above the 0.020
+(±0.019) of the flat baseline with the same doorway co-
+ordinates. In the reported evaluation rollouts, the flat
+baseline succeeded only when the goal was in the initial
+room.
+To test the effect of doorway coordinates, we trained
+a vanilla flat DQN (5-dimensional observation, no door
+features) under the identical protocol and compared it to
+the flat DQN with doorway coordinates across 20 paired
+seeds. No statistically significant difference was detected
+in success rate on previously unseen layouts (mean dif-
+ference 0.010, 95 % CI ±0.026, paired t-test p = 0.43) or
+asymptotic training return (p = 0.99).
+4.2
+Experiment 2: Continuous Robotic
+Manipulation
+We use Robosuite [Zhu et al., 2025] with a Panda robot
+arm (Fig. 3). The Pick and Lift task requires the robot
+to approach a cube, grasp it with both finger pads and
+raise it to a target height.
+The full task is modelled as a Markov decision pro-
+cess M = (S, A, P, r, γ) with continuous state and ac-
+tion spaces. The state vector contains end-effector posi-
+tion and orientation, gripper joint positions and veloci-
+ties, and cube position and orientation. The action is a
+7-dimensional vector specifying end-effector pose deltas
+
+
+Figure 2: Discrete navigation results (n = 20 seeds, mean, 95 % CI). (a) HRL skill training return and (b) episode
+length for the GoTo and CrossDoor subpolicies.
+Both subpolicies converge within ∼50,000 training steps, with
+CrossDoor converging earlier given its ∼5-step horizon. (c) Success rates across previously unseen layouts for HRL
+and the flat DQN. Dotted lines mark the overall means (0.55 vs 0.02).
+Figure 3: Execution of the hierarchical Pick and Lift chain in Robosuite using a Panda robot arm: left — approaching
+the cube (Reach), centre — aligning and closing the gripper around the cube (Grasp), and right — raising the cube
+to the target height (Lift).
+via the Operational Space Controller (OSC) and grip-
+per control. The transition dynamics are governed by
+the MuJoCo physics engine with contact-rich interac-
+tion between gripper and cube. The discount factor is
+γ = 0.99.
+Hierarchical Decomposition and Transfer.
+The task is decomposed into three sequential skills, each
+trained as an independent SAC policy with its own re-
+ward, action filter, and termination condition:
+• Reach: Move the end-effector toward the cube un-
+til the gripper–cube distance d falls below dthr =
+0.04 m. The action filter disables rotation and locks
+the gripper open.
+• Grasp: Align the gripper with the cube and estab-
+lish contact between both finger pads and the cube.
+Alignment is measured by two cosine terms, ca be-
+tween the gripper approach axis and the direction to
+the cube, and cf between the finger closing axis and
+the nearest cube face normal.
+Upon meeting the
+alignment trigger (d < 0.025 m, ca > 0.5, cf > 0.7),
+a rule-based close-and-lift sequence executes. Suc-
+cess requires both finger pads in contact with the
+cube and a confirmed lift of > 5 mm.
+• Lift: Raise the grasped cube to a target height, with
+a curriculum advancing through 3, 5, and 10 cm.
+The action filter holds the gripper closed.
+Skills are trained sequentially using Algorithm 1 on full
+MuJoCo simulator states.
+Each skill is evaluated every 5,000 steps over M = 30
+deterministic episodes. Training stops once its evalua-
+tion success rate reaches η = 0.95 on three consecutive
+
+
+evaluations.
+The reported per-skill step counts corre-
+spond to these stopping points. Pools are collected by
+running N = 500 deterministic episodes of the trained
+policy and keeping the complete simulator state when
+the success condition is triggered. Initial states for down-
+stream skills are sampled uniformly from the pool.
+Reward functions.
+Let ∆(x) = max(0, x −xmax) denote new progress in a
+quantity x, where xmax is the largest value of x attained
+so far in the current episode and is reset at each episode
+start. Per-skill rewards are:
+rreach = −d + 1[d < dthr],
+(1)
+rgrasp = q ∆(σ) + balign1[aligned]
++ bgrasp1[grasp success],
+(2)
+rlift = αz ∆(zcube) 1[contact]
++ blift1[lift success],
+(3)
+The alignment predicate 1[aligned] in Eq. (2) triggers
+when gripper–cube distance falls below 0.025 m with
+ca > 0.5. The rule-based close-and-lift sequence addi-
+tionally requires cf > 0.7. Grasp success requires both
+finger pads in cube contact, with a confirmed lift of
+> 5 mm validated at least three steps after closure and
+held for two consecutive steps. The contact predicate
+in Eq. (3) gates the lift height term on any cube–pad
+contact.
+The pose-shaping score in the grasp reward is the
+product σ = p(d) ω, where p(d) = clip(1−d/0.08, 0, 1) is
+the clipped-linear proximity term and ω = 0.3 ca + 0.7 cf
+is the weighted alignment term. The shaping term re-
+wards only new progress through ∆(σ). The gate q is
+one until the alignment predicate first triggers and zero
+thereafter. A per-step penalty of 0.02 applies throughout
+the grasp skill.
+Per-skill reward coefficients are αz = 500, balign = 1,
+bgrasp = 10, and blift = 5.
+For comparison,
+the flat SAC baseline optimises
+a shaped reward combining a gripper–cube distance
+penalty, a reward for new lift progress, and a task-success
+bonus:
+rflat = −αd d + αp ∆(prog) + btask1[success],
+(4)
+where prog ∈[0, 1] is the normalised lift progress. Re-
+warding only new progress, as in Eq. (3), prevents re-
+peated reward collection for revisiting an already at-
+tained height. The flat baseline therefore receives inter-
+mediate shaping, but its reward is not matched to the
+stage-specific rewards of the hierarchical pipeline. The
+pipelines also differ in action constraints, rule-based con-
+trol and replay-buffer handling.
+The flat baseline reward coefficients are αd = 1,
+αp = 10, and btask = 5.
+The lift reward is awarded
+only for increases beyond the previously attained maxi-
+mum height. An earlier absolute height formulation was
+exploited by hovering at an intermediate height to accu-
+mulate reward over successive time steps without com-
+pleting the task.
+Training Details.
+Both the flat baseline and the hierarchical skills use
+SAC [Haarnoja et al., 2018] with two hidden layers of
+256 units each, learning rate 10−4, batch size 256, dis-
+count factor γ = 0.99, target smoothing τ = 0.002 (0.005
+for reach), one gradient step per environment step, and
+gradient clipping with a maximum norm of 0.5. Learning
+starts after 10,000 transitions. The replay buffer capac-
+ity is 100,000 transitions for the skill policies and 300,000
+for the flat baseline.
+The entropy coefficient is auto-
+tuned for reach (default initialisation) and grasp (ini-
+tialised at 0.1), and fixed at 0.01 for lift. The flat baseline
+uses auto-tuned entropy initialised at 0.1. The episode
+horizon is 200 steps.
+The grasp policy uses pink ac-
+tion noise [Eberhard et al., 2023] with σ = 0.1, sequence
+length 200, and spectral exponent 1.0. Observations are
+normalised via running statistics, clipped at 20.0 and
+synchronised every 1,000 steps between the training and
+evaluation environments. Raw actions pass through a
+skill-specific filter for scaling, deadzone thresholds, ex-
+ponential moving average smoothing, and gripper over-
+rides.1
+The lift skill advances through target heights of 3, 5,
+and 10 cm. The target height increases when the rolling
+success rate over the last 100 training episodes reaches
+0.80, at which point the replay buffer is flushed to re-
+move transitions whose rewards were computed against
+the previous height target.
+The flat baseline uses the
+same three targets with an advancement threshold of
+0.60 and keeps its replay buffer across stages. All re-
+ported lift and full-chain results are at the 10 cm target.
+The flat baseline is a single SAC agent trained end-
+to-end with rflat over the full seven-dimensional action
+space and the same sequence of target heights, for up to
+1,000,000 steps. The flat baseline’s stopping criterion is
+assessed at the final 10 cm target. The hierarchical skills
+are trained sequentially with the reset pools described
+above (per-skill training steps in Table 2). Fifteen seeds
+are run per method. The full chain success is evaluated
+on 30 fixed, unseen placements sampled from the train-
+ing distribution (450 rollouts total), and per-skill success
+every 5,000 steps over 30 rollouts.
+1After a pool state is loaded into the simulator, the Ro-
+bosuite OSC controller’s internal goal must be synchronised
+with the loaded end-effector pose.
+Otherwise, a one-step
+transient at episode start can destabilise training.
+
+
+Figure 4: Learning curves on the Pick and Lift task (n = 15 seeds, mean, 95 % CI). Left: evaluation success rate
+versus environment steps for the three hierarchical skills, converging on average within ∼132k (reach), ∼47k (grasp),
+and ∼16k (lift) steps. Right: The flat baseline reaches the training stopping criterion in 14 of 15 seeds (∼292k steps
+on average). One seed does not reach the desired success rate within its 1M-step budget.
+Results.
+Figure 4 shows learning curves for the individual skills
+and the flat baseline.
+The trained skills form a Pick
+and Lift policy chain at ∼195,000 cumulative training
+steps (Table 2). The flat baseline reaches the stopping
+criterion in 14 of 15 seeds, requiring ∼292,000 steps on
+average (range 165k–520k).
+One seed does not reach
+the desired success rate within its 1,000,000-step budget.
+The flat baseline’s final success rate is 0.914 ± 0.253,
+compared with 0.858 ± 0.103 for the full chain.
+The
+lowest-performing chain seed achieves 0.667, compared
+with 0.000 for the worst flat seed.
+At test time the skills are chained by a wrapper that
+hands off on each skill’s success predicate, with a failure
+at any skill recorded against that skill. The chain suc-
+ceeds in 86% of rollouts (0.858 ± 0.103, 95 % CI ±0.057,
+450 rollouts). Of the 64 failed rollouts, 20 terminated
+during reaching, 38 during grasping and 6 during lifting.
+End-to-end success factorises as the product of per-
+interface conditional rates (0.956 × 0.912 × 0.985 ≈
+0.858). The pooled conditional success rates differ from
+the corresponding mean standalone success rates by less
+than 0.03 (Table 2), consistent with limited additional
+loss at the handoffs. The two training seeds with the
+lowest full-chain success rates correspond to lower reach-
+ing success in one seed (0.733 in-chain, 0.800 standalone)
+and lower conditional grasping success in another (0.700
+conditional), while two trained policies succeeded in all
+30 evaluation rollouts.
+Skill reuse in stacking.
+We extend Pick and Lift to stacking by training an ad-
+ditional Place skill for each of the 15 policy seeds. The
+Reach, Grasp and Lift policies and their observation nor-
+malisation statistics remain frozen.
+We use a modified Robosuite Stack environment. The
+upstream policies retain their original observations of
+cube A, without observing cube B. Cube A is sampled
+within the Lift training range of ±3 cm and cube B
+within ±8 cm, subject to a minimum separation con-
+straint. Cube A has a fixed half-width of 2 cm, compared
+with 2.0–2.2 cm during Lift training.
+Place is trained using SAC from successful Lift states
+collected in Stack. Its 22-dimensional observation con-
+tains gripper and object states, relative displacements
+and a release flag. It controls three translational actions
+scaled by 0.3, with rotation disabled and the gripper
+closed until release.
+Let dxy be the horizontal distance between cube cen-
+tres, zA the height of cube A’s centre and z∗its target
+height when stacked on cube B. With distances in me-
+tres, the shaping target zg(s), potential Φ(s), and reward
+rt are
+zg(s) = z∗+ 0.05 clip
+dxy −0.005
+0.02
+, 0, 1
+
+,
+(5)
+Φ(s) = −dxy + |zA −zg(s)|
+0.05
+,
+(6)
+rt = qt[Φ(st+1) −Φ(st)] −0.01 + 10 1[success].
+(7)
+where qt is one before release is triggered and zero there-
+after. Release occurs when dxy < 0.01 m and |zA −z∗| <
+0.015 m, followed by a fixed gripper-opening and upward
+retreat sequence.
+A terminal bonus of 10 is awarded
+when the stacking success condition is satisfied.
+Place uses the shared skill-policy SAC settings with
+τ = 0.005, automatically tuned entropy and the same
+pink action noise as Grasp. Training is capped at 500,000
+steps per seed, with evaluation over 30 episodes every
+5,000 steps. Training stops when success reaches at least
+0.95 on three consecutive evaluations.
+During stacking evaluation, the upstream chain has
+a 600-step budget, with attempt limits of 200, 160 and
+250 steps for Reach, Grasp and Lift. On timeout, Reach
+continues and Grasp restarts from Reach. Lift restarts
+from Reach if the cube has risen by less than 1 cm relative
+
+
+Method
+Steps
+Success (mean±std)
+95% CI
+Flat SAC
+∼292k
+0.914 ± 0.253
+±0.140
+HRL Reach
+∼132k
+0.978 ± 0.051
+±0.028
+HRL Grasp
+∼47k
+0.940 ± 0.055
+±0.031
+HRL Lift (10 cm)
+∼16k
+0.987 ± 0.028
+±0.015
+Full chain
+∼195k
+0.858 ± 0.103
+±0.057
+Table 2: Per-skill evaluation success rates (mean ± std, 95 % CI, 15 seeds) and full-chain result over 450 rollouts (30
+per seed). Chain failures: reach 20, grasp 38, lift 6. Flat SAC is reported on the full task. The mean training step
+count for flat SAC is calculated over the 14 seeds that reached the success criterion, and one seed did not reach this
+criterion within the budget of 1,000,000 steps.
+Metric
+Result
+Pick and Lift completion
+385/450 (85.6%)
+Place success given handoff
+322/385 (83.6%)
+Full stacking success
+0.716 ± 0.105
+Table 3: Stacking with frozen Pick and Lift policies and
+an additionally trained Place skill. Evaluation uses 15
+policy seeds and 30 shared initialisations per seed. Full
+stacking success is the mean ± sample standard devia-
+tion across seeds. The other metrics are pooled episode
+ratios.
+to its height at the start of the attempt. Otherwise, Lift
+continues.
+At 98% progress towards the 10 cm Lift target, control
+passes to Place for up to 200 steps. Stacking succeeds
+when Robosuite’s stacking predicate holds for 10 consec-
+utive control steps after release is triggered.
+All 15 policy sets are evaluated deterministically on
+the same 30 initialisations, giving 450 episodes. Overall
+success is reported as the mean and sample standard de-
+viation across seeds. Conditional Place success is pooled
+across episodes reaching Place. Table 3 reports Pick and
+Lift completion, conditional Place success and overall
+stacking success.
+Of the 128 unsuccessful episodes, 15 were attributed
+to Reach, 40 to Grasp, 10 to Lift and 63 to Place. Up-
+stream failures are attributed to the first skill whose
+handoff condition was never achieved before the chain
+budget expired, including retries.
+Place failures com-
+prise episodes that completed the Pick and Lift chain
+but did not satisfy the stacking success condition.
+The Place failure labels comprised 46 timeouts, 16
+low-cube states and one displacement of cube B. Grasp
+was the largest upstream failure category, while Place
+accounted for approximately half of all unsuccessful
+episodes.
+5
+Discussion
+The navigation results demonstrate reuse of parame-
+terised policies across previously unseen layouts without
+additional training, with higher success and fewer train-
+ing steps than the evaluated flat DQN baselines. This
+transfer uses a manually specified high-level plan for each
+layout. The flat baseline succeeded only when the goal
+was located in the initial room, indicating limited per-
+formance on tasks requiring inter-room traversal. The
+addition of doorway coordinates yielded no statistically
+significant improvement under the evaluated protocol,
+suggesting that access to these coordinates alone was in-
+sufficient to overcome this limitation within the allocated
+training budget.
+In manipulation, the hierarchical chain required fewer
+training steps than flat SAC and exhibited lower ob-
+served variability in final success across seeds, whereas
+flat SAC achieved a higher mean final success rate.
+Grasping accounted for the majority of chain failures.
+Conditional in-chain success rates were close to the cor-
+responding standalone skill success rates, consistent with
+limited additional performance loss during composition.
+The stacking extension achieved 0.716 success by com-
+bining the frozen Pick and Lift policies with an addition-
+ally trained Place skill. Failures were distributed almost
+equally between the upstream chain and placement.
+6
+Conclusion
+This paper evaluated demonstration-free hierarchical
+pipelines for simulated navigation and manipulation. In
+navigation, two parameterised skills achieved a success
+rate of 0.555 on previously unseen FourRooms layouts
+following approximately 100,000 training steps, com-
+pared with 0.020 for the flat DQN with doorway coor-
+dinates after 500,000 steps. In manipulation, the chain
+achieved 0.858 success following approximately 195,000
+cumulative training steps, compared with 0.914 for flat
+SAC, with approximately 292,000 training steps aver-
+aged over the 14 of 15 seeds that reached the success
+criterion. Reusing the frozen Pick and Lift policies with
+an additionally trained Place skill achieved 0.716 stack-
+ing success.
+Several directions remain open. In navigation, these
+include automated high-level planning, transfer beyond
+
+
+the FourRooms environment and evaluating a flat DQN
+with the same prescribed subgoals and intermediate re-
+wards as the hierarchical pipeline. In manipulation, fu-
+ture work can include improving skill reliability and in-
+vestigating flat SAC’s higher mean success through ad-
+ditional grasp-specific rewards and ablations of control
+constraints and training procedures. Learning skill selec-
+tion, handoff conditions, termination criteria and retry
+decisions from interaction can reduce reliance on manu-
+ally specified execution components. Further studies can
+explore reuse with different predecessors and execution
+orders through retraining or learned transition policies.
+Additional comparisons can include reward-engineered
+and transition-policy methods, alongside execution-time
+evaluation under matched conditions. A further direc-
+tion is automatic expansion of the skill set, in which a
+planner composes existing skills and triggers the training
+of additional skills to support new transitions.
+Acknowledgments
+This research was supported by the Commonwealth
+through an Australian Government Research Train-
+ing Program Scholarship [DOI: https://doi.org/10.
+82133/C42F-K220].
+References
+[Bacon et al., 2016] Pierre-Luc Bacon, Jean Harb, and
+Doina Precup. The Option-Critic Architecture, De-
+cember 2016.
+[Bagaria and Konidaris, 2020] Akhil
+Bagaria
+and
+George Konidaris. Option discovery using deep skill
+chaining.
+In International Conference on Learning
+Representations, 2020.
+[Byun and Perrault, 2022] Ju-Seung Byun and Andrew
+Perrault. Training Transition Policies via Distribution
+Matching for Complex Tasks, March 2022.
+[Chen et al., 2023] Yuanpei Chen, Chen Wang, Li Fei-
+Fei, and C. Karen Liu. Sequential Dexterity: Chain-
+ing Dexterous Policies for Long-Horizon Manipula-
+tion, October 2023.
+[Chen et al., 2024] Zixuan Chen, Yang Gao, Jing Huo,
+and Ze Ji.
+SCaR: Refining skill chaining for long-
+horizon robotic manipulation via dual regularization.
+pages 111679–111714, January 2024.
+[Chevalier-Boisvert et al., 2023] Maxime
+Chevalier-
+Boisvert, Bolun Dai, Mark Towers, Rodrigo de Laz-
+cano, Lucas Willems, Salem Lahlou, Suman Pal,
+Pablo Samuel Castro, and Jordan Terry. Minigrid &
+Miniworld: Modular & Customizable Reinforcement
+Learning
+Environments
+for
+Goal-Oriented
+Tasks,
+June 2023.
+[Clegg et al., 2018] Alexander Clegg, Wenhao Yu, Jie
+Tan, C. Karen Liu, and Greg Turk. Learning to dress:
+Synthesizing human dressing motion via deep rein-
+forcement learning. ACM Transactions on Graphics,
+37(6):179:1–179:10, 2018.
+[Eberhard et al., 2023] Onno Eberhard, Jakob Hollen-
+stein, Cristina Pinneri, and Georg Martius. pink noise
+is all you need: colored noise exploration in deep re-
+inforcement learning. 2023.
+[Haarnoja et al., 2018] Tuomas Haarnoja, Aurick Zhou,
+Pieter Abbeel, and Sergey Levine. Soft Actor-Critic:
+Off-Policy Maximum Entropy Deep Reinforcement
+Learning with a Stochastic Actor, August 2018.
+[Hutsebaut-Buysse et al., 2022] Matthias
+Hutsebaut-
+Buysse, Kevin Mets, and Steven Latré. Hierarchical
+Reinforcement Learning:
+A Survey and Open Re-
+search Challenges.
+MAKE, 4(1):172–221, February
+2022.
+[Kim et al., 2023] Byeongjun Kim, Gunam Kwon, Cha-
+neun Park, and Nam Kyu Kwon.
+The task de-
+composition and dedicated reward-system-based re-
+inforcement learning algorithm for pick-and-place.
+Biomimetics, 8(2):240, 2023.
+[Konidaris and Barto, 2009] George Konidaris and An-
+drew Barto. Skill discovery in continuous reinforce-
+ment learning domains using skill chaining. In Y. Ben-
+gio, D. Schuurmans, J. Lafferty, C. Williams, and
+A. Culotta, editors, Advances in Neural Information
+Processing Systems, volume 22. Curran Associates,
+Inc., 2009.
+[Kwon et al., 2024] Gunam Kwon, Byeongjun Kim, and
+Nam Kyu Kwon.
+Reinforcement learning with task
+decomposition and task-specific reward system for au-
+tomation of high-level tasks. Biomimetics, 9(4):196,
+2024.
+[Lee et al., 2019] Youngwoon Lee, Shao-Hua Sun, Sri-
+ram Somasundaram, Edward S Hu, and Joseph J Lim.
+Composing complex skills by learning transition poli-
+cies. 2019.
+[Lee et al., 2021] Youngwoon Lee, Joseph J. Lim, An-
+ima Anandkumar, and Yuke Zhu.
+Adversarial Skill
+Chaining for Long-Horizon Robot Manipulation via
+Terminal State Regularization, November 2021.
+[Mnih et al., 2013] Volodymyr
+Mnih,
+Koray
+Kavukcuoglu, David Silver, Alex Graves, Ioannis
+Antonoglou, Daan Wierstra, and Martin Riedmiller.
+Playing Atari with Deep Reinforcement Learning,
+December 2013.
+[Raffin et al., 2021] Antonin Raffin, Ashley Hill, Adam
+Gleave, Anssi Kanervisto, Maximilian Ernestus, and
+
+
+Noah Dormann. Stable-baselines3: Reliable reinforce-
+ment learning implementations. Journal of Machine
+Learning Research, 22(268):1–8, 2021.
+[Sutton et al., 1999] Richard S. Sutton, Doina Precup,
+and Satinder Singh. Between MDPs and semi-MDPs:
+A framework for temporal abstraction in reinforce-
+ment learning.
+Artificial Intelligence, 112(1-2):181–
+211, August 1999.
+[Zhu et al., 2025] Yuke Zhu, Josiah Wong, Ajay Man-
+dlekar,
+Roberto
+Martín-Martín,
+Abhishek
+Joshi,
+Kevin Lin, Abhiram Maddukuri, Soroush Nasiriany,
+and Yifeng Zhu. Robosuite: A Modular Simulation
+Framework and Benchmark for Robot Learning, Jan-
+uary 2025.

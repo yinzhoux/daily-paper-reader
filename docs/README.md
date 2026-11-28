@@ -48,17 +48,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-11-18 ~ 2026-11-27</span>
+      <span class="dpr-home-dashboard-kicker">2026-11-28</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 18 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 17 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>7</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>6</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>11</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-11-27 09:03:28 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-11-28 02:26:42 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -69,7 +69,7 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>本周期共筛出18篇论文、精读7篇，重点锁定强化学习与机器人世界模型两条主线。最值得关注的是满分10.0的《Into My Arms》，它用结构化强化学习实现物体和人的自主运输；其次是9.0分的《WEVO》，它用世界模型优化全身移动操作。建议普通读者先看这两篇，再沿JEPA Dots、SemPhys等速读论文，了解世界模型在语言引导控制和类人运动上的延伸。</p>
+<p>今天精读6篇、速读11篇，共筛出17篇机器人学习前沿论文。最值得关注的是人形全身控制的双星：ECHO上下文行为基座模型和ζ₀世界动作模型（均9.0分），以及零样本跨形态灵巧抓取与JEPA上下文操作等速读方向。普通读者可先看ECHO了解人形控制“无需重训即可泛化”的思路，再顺着世界模型与上下文学习两条线追踪后续进展。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -78,12 +78,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">精读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">7 篇</strong>
+    <strong class="dpr-home-dashboard-count">6 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Into My Arms: Structured reinforcement learning for autonomous transport of objects and humans">Into My Arms: Structured reinforcement learning for autonomous transport of objects and humans</span></li><li><span class="dpr-home-dashboard-paper-title" title="WEVO: World Model-Enabled VLA Optimization for Whole-Body Loco-Manipulation">WEVO: World Model-Enabled VLA Optimization for Whole-Body Loco-Manipulation</span></li><li><span class="dpr-home-dashboard-paper-title" title="Awaken-HI: Scaling Humanoid Intelligence with Whole-Body Human Experience">Awaken-HI: Scaling Humanoid Intelligence with Whole-Body Human Experience</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="ECHO: In-Context Behavior foundation model for Humanoid Whole-Body Control">ECHO: In-Context Behavior foundation model for Humanoid Whole-Body Control</span></li><li><span class="dpr-home-dashboard-paper-title" title="$ζ_0$: A Framework for World Action Models with Joint Scene and Body Foresight in Humanoid Control">$ζ_0$: A Framework for World Action Models with Joint Scene and Body Foresight in Humanoid Control</span></li><li><span class="dpr-home-dashboard-paper-title" title="DynaMimic: A Physics-Informed World Model for Humanoid Motion Tracking">DynaMimic: A Physics-Informed World Model for Humanoid Motion Tracking</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">humanoid-rl <strong>7</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">humanoid-rl <strong>6</strong></span></div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-skim-card">
   <div class="dpr-home-dashboard-header">
@@ -94,7 +94,7 @@
     <strong class="dpr-home-dashboard-count">11 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="JEPA Dots: Dual-Latent World Model for Language-Guided Robot Control">JEPA Dots: Dual-Latent World Model for Language-Guided Robot Control</span></li><li><span class="dpr-home-dashboard-paper-title" title="SemPhys: Semantic-Physical Co-Learning for Humanoid Motion Generation via Differentiable World Models">SemPhys: Semantic-Physical Co-Learning for Humanoid Motion Generation via Differentiable World Models</span></li><li><span class="dpr-home-dashboard-paper-title" title="Embodied Graph: A Relational World Model for Long-Horizon Tasks">Embodied Graph: A Relational World Model for Long-Horizon Tasks</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="FunGrasp-Zero: Field-Conditioned Graph Attention Policy for Zero-Shot Cross-Embodiment Dexterous Functional Grasping">FunGrasp-Zero: Field-Conditioned Graph Attention Policy for Zero-Shot Cross-Embodiment Dexterous Functional Grasping</span></li><li><span class="dpr-home-dashboard-paper-title" title="JEPA-ICL: Progress-Aligned Latent Plans for In-Context Robotic Manipulation">JEPA-ICL: Progress-Aligned Latent Plans for In-Context Robotic Manipulation</span></li><li><span class="dpr-home-dashboard-paper-title" title="HIVE-Bench: Evaluating Patch-Level Visual Representations for Egocentric Robot Manipulation">HIVE-Bench: Evaluating Patch-Level Visual Representations for Egocentric Robot Manipulation</span></li></ul>
   </div>
   <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">humanoid-rl <strong>11</strong></span></div>
 </section>

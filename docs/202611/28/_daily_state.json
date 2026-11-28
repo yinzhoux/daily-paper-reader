@@ -1,0 +1,281 @@
+{
+  "date": "20261128",
+  "date_label": "",
+  "generated_at": "2026-11-28 02:26:42 UTC",
+  "recommend_exists": true,
+  "run_count": 1,
+  "papers": [
+    {
+      "paper_id": "2611.25778v1",
+      "route": "202611/28/2611.25778v1-echo-in-context-behavior-foundation-model-for-humanoid-whole-body-control",
+      "title": "ECHO: In-Context Behavior foundation model for Humanoid Whole-Body Control",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "基于大规模并行强化学习的人形全身控制上下文行为基础模型",
+      "first_seen_at": "2026-11-28 02:26:42 UTC",
+      "updated_at": "2026-11-28 02:26:42 UTC"
+    },
+    {
+      "paper_id": "2611.29277v1",
+      "route": "202611/28/2611.29277v1-0-a-framework-for-world-action-models-with-joint-scene-and-body-foresight-in-humanoid-control",
+      "title": "$ζ_0$: A Framework for World Action Models with Joint Scene and Body Foresight in Humanoid Control",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "预测场景与身体运动的世界动作模型用于人形控制",
+      "first_seen_at": "2026-11-28 02:26:42 UTC",
+      "updated_at": "2026-11-28 02:26:42 UTC"
+    },
+    {
+      "paper_id": "2611.32944v1",
+      "route": "202611/28/2611.32944v1-dynamimic-a-physics-informed-world-model-for-humanoid-motion-tracking",
+      "title": "DynaMimic: A Physics-Informed World Model for Humanoid Motion Tracking",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "用物理信息可微世界模型配合强化学习训练人形全身动作跟踪策略",
+      "first_seen_at": "2026-11-28 02:26:42 UTC",
+      "updated_at": "2026-11-28 02:26:42 UTC"
+    },
+    {
+      "paper_id": "2611.33828v1",
+      "route": "202611/28/2611.33828v1-learning-a-whole-body-pivot-walking-gait-for-heavy-box-transport-with-a-humanoid",
+      "title": "Learning a Whole-Body Pivot-Walking Gait for Heavy-Box Transport with a Humanoid",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "单一强化学习策略协同人形机器人迈步、平衡与物体操作以搬运重箱",
+      "first_seen_at": "2026-11-28 02:26:42 UTC",
+      "updated_at": "2026-11-28 02:26:42 UTC"
+    },
+    {
+      "paper_id": "2611.26054v1",
+      "route": "202611/28/2611.26054v1-reference-free-humanoid-skateboarding-via-termination-shaped-reinforcement-learning",
+      "title": "Reference-Free Humanoid Skateboarding via Termination-Shaped Reinforcement Learning",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "人形机器人通过强化学习与可移动物体协调交互",
+      "first_seen_at": "2026-11-28 02:26:42 UTC",
+      "updated_at": "2026-11-28 02:26:42 UTC"
+    },
+    {
+      "paper_id": "2611.27645v1",
+      "route": "202611/28/2611.27645v1-efficient-vla-reinforcement-learning-via-subchunk-rollouts-in-latent-world-models",
+      "title": "Efficient VLA Reinforcement Learning via Subchunk Rollouts in Latent World Models",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "利用潜空间世界模型与子块推演提升VLA策略的基于模型强化学习",
+      "first_seen_at": "2026-11-28 02:26:42 UTC",
+      "updated_at": "2026-11-28 02:26:42 UTC"
+    },
+    {
+      "paper_id": "2611.29195v1",
+      "route": "202611/28/2611.29195v1-fungrasp-zero-field-conditioned-graph-attention-policy-for-zero-shot-cross-embodiment-dexterous-functional-grasping",
+      "title": "FunGrasp-Zero: Field-Conditioned Graph Attention Policy for Zero-Shot Cross-Embodiment Dexterous Functional Grasping",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "以物体为中心功能接触表示的强化学习灵巧抓取框架",
+      "first_seen_at": "2026-11-28 02:26:42 UTC",
+      "updated_at": "2026-11-28 02:26:42 UTC"
+    },
+    {
+      "paper_id": "2611.30516v1",
+      "route": "202611/28/2611.30516v1-jepa-icl-progress-aligned-latent-plans-for-in-context-robotic-manipulation",
+      "title": "JEPA-ICL: Progress-Aligned Latent Plans for In-Context Robotic Manipulation",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "在JEPA潜空间中预测有序未来状态，形成进度对齐计划以引导示教驱动的操作策略",
+      "first_seen_at": "2026-11-28 02:26:42 UTC",
+      "updated_at": "2026-11-28 02:26:42 UTC"
+    },
+    {
+      "paper_id": "2611.30813v1",
+      "route": "202611/28/2611.30813v1-hive-bench-evaluating-patch-level-visual-representations-for-egocentric-robot-manipulation",
+      "title": "HIVE-Bench: Evaluating Patch-Level Visual Representations for Egocentric Robot Manipulation",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "评测第一视角双臂机器人操作中块级视觉表示的基准",
+      "first_seen_at": "2026-11-28 02:26:42 UTC",
+      "updated_at": "2026-11-28 02:26:42 UTC"
+    },
+    {
+      "paper_id": "2611.31782v1",
+      "route": "202611/28/2611.31782v1-many-senses-one-world-learning-hierarchical-multimodal-world-representations-for-bimanual-dexterous-manipulation",
+      "title": "Many Senses, One World: Learning Hierarchical Multimodal World Representations for Bimanual Dexterous Manipulation",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "分层多模态世界状态表示驱动双臂灵巧操作策略",
+      "first_seen_at": "2026-11-28 02:26:42 UTC",
+      "updated_at": "2026-11-28 02:26:42 UTC"
+    },
+    {
+      "paper_id": "2611.25462v1",
+      "route": "202611/28/2611.25462v1-demonstration-free-skill-composition-for-navigation-and-manipulation",
+      "title": "Demonstration-Free Skill Composition for Navigation and Manipulation",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 7.0,
+      "evidence": "评估无示教分层强化学习流水线，将分别训练的技能组合用于导航与机器人操作",
+      "first_seen_at": "2026-11-28 02:26:42 UTC",
+      "updated_at": "2026-11-28 02:26:42 UTC"
+    },
+    {
+      "paper_id": "2611.26105v1",
+      "route": "202611/28/2611.26105v1-physvam-physics-oriented-future-value-action-model-for-dynamic-object-manipulation",
+      "title": "PhysVAM: Physics-oriented Future Value Action Model for Dynamic Object Manipulation",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 7.0,
+      "evidence": "物理导向的未来价值动作模型，以对任务进展的影响表示预期物体交互，用于动态操作",
+      "first_seen_at": "2026-11-28 02:26:42 UTC",
+      "updated_at": "2026-11-28 02:26:42 UTC"
+    },
+    {
+      "paper_id": "2611.28551v1",
+      "route": "202611/28/2611.28551v1-physppf-learning-robotic-manipulation-with-past-present-and-future-physical-representations",
+      "title": "PhysPPF: Learning Robotic Manipulation with Past, Present, and Future Physical Representations",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 7.0,
+      "evidence": "面向机器人操作策略的结构化物理表征",
+      "first_seen_at": "2026-11-28 02:26:42 UTC",
+      "updated_at": "2026-11-28 02:26:42 UTC"
+    },
+    {
+      "paper_id": "2611.28732v1",
+      "route": "202611/28/2611.28732v1-entangle-scaling-human-video-in-context-world-action-models-across-unseen-tasks-and-contexts",
+      "title": "Entangle: Scaling Human-Video In-Context World-Action Models across Unseen Tasks and Contexts",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 7.0,
+      "evidence": "从单个人类视频进行上下文学习的世界-动作操作模仿模型",
+      "first_seen_at": "2026-11-28 02:26:42 UTC",
+      "updated_at": "2026-11-28 02:26:42 UTC"
+    },
+    {
+      "paper_id": "2611.25667v1",
+      "route": "202611/28/2611.25667v1-causyncvla-causal-latent-world-modeling-for-asynchronous-robot-control",
+      "title": "CauSyncVLA: Causal Latent World Modeling for Asynchronous Robot Control",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 6.0,
+      "evidence": "因果潜空间世界模型从延迟视觉锚点与已执行状态动作历史预测感知记忆，支撑异步机器人控制",
+      "first_seen_at": "2026-11-28 02:26:42 UTC",
+      "updated_at": "2026-11-28 02:26:42 UTC"
+    },
+    {
+      "paper_id": "2611.29338v1",
+      "route": "202611/28/2611.29338v1-a-glimpse-of-training-vlms-as-foundation-models-for-robotic-manipulation",
+      "title": "A Glimpse of Training VLMs as Foundation Models for Robotic Manipulation",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 6.0,
+      "evidence": "面向操作策略的结构化语义动作原语与受限动作空间",
+      "first_seen_at": "2026-11-28 02:26:42 UTC",
+      "updated_at": "2026-11-28 02:26:42 UTC"
+    },
+    {
+      "paper_id": "2611.29339v1",
+      "route": "202611/28/2611.29339v1-more-than-picturing-the-future-motion-oriented-latent-reasoning-for-generalizable-robot-manipulation",
+      "title": "More Than Picturing the Future: Motion-Oriented Latent Reasoning for Generalizable Robot Manipulation",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "humanoid-rl"
+        }
+      ],
+      "score": 6.0,
+      "evidence": "面向可泛化机器人操作的运动导向潜在推理表示",
+      "first_seen_at": "2026-11-28 02:26:42 UTC",
+      "updated_at": "2026-11-28 02:26:42 UTC"
+    }
+  ]
+}

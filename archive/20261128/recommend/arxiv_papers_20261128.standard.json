@@ -1,0 +1,846 @@
+{
+  "mode": "standard",
+  "generated_at": "2026-11-28T02:23:32.851493+00:00",
+  "stats": {
+    "mode": "standard",
+    "tag_count": 1,
+    "deep_divecandidates": 15,
+    "deep_cap": 6,
+    "deep_selected": 6,
+    "quick_candidates": 48,
+    "quick_skim_target": 11,
+    "quick_selected": 11
+  },
+  "deep_dive": [
+    {
+      "id": "2611.25778v1",
+      "source": "arxiv",
+      "title": "ECHO: In-Context Behavior foundation model for Humanoid Whole-Body Control",
+      "abstract": "Humanoid behavior foundation models (BFMs) acquire diverse skills through large-scale motion imitation and massively parallel reinforcement learning, yet broad behavioral capability does not ensure precise execution across physical conditions. Without distinguishing the underlying dynamics, policies may favor conservative compromises over environment-specific precision. We introduce ECHO, an in-context BFM that turns interaction experience into environment-specific control, separating general behavioral capability from dynamics-specific execution. Mixed and Annealed Sampling first establishes a behavior prior in a single pretraining stage by balancing targeted practice with broad motion coverage. Building on this prior, Context Representation and Residual Adaptation learns structured dynamics representations from interaction histories to guide residual corrections to the frozen prior, enabling adaptation without test-time parameter updates. Extensive experiments show that ECHO outperforms all baseline methods across diverse motions and physical conditions. Moreover, deployment on the Unitree G1 demonstrates whole-body teleoperation spanning extreme acrobatics and terrain interaction, alongside payload adaptation in manipulation and whole-body control. Page is available at https://mwondering.github.io/echo-bfm/",
+      "authors": [
+        "Xingyi Wang",
+        "Bin Li",
+        "Jiyuan Shi",
+        "Chenyun Zhang",
+        "Weiji Xie",
+        "Xiangyu Miao",
+        "Junsong Wu",
+        "Wei Song",
+        "Shiqiang Zhu",
+        "Chenjia Bai"
+      ],
+      "primary_category": "cs.RO",
+      "categories": [
+        "cs.RO"
+      ],
+      "published": "2026-11-19T09:11:24+00:00",
+      "link": "https://arxiv.org/pdf/2611.25778v1",
+      "tags": [
+        "keyword:humanoid-rl",
+        "query:humanoid-rl"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "In-context humanoid behavior foundation model trained with massively parallel reinforcement learning for whole-body control",
+      "llm_evidence_cn": "基于大规模并行强化学习的人形全身控制上下文行为基础模型",
+      "llm_evidence": "基于大规模并行强化学习的人形全身控制上下文行为基础模型",
+      "canonical_evidence": "基于大规模并行强化学习的人形全身控制上下文行为基础模型",
+      "llm_tldr_en": "ECHO builds an in-context humanoid behavior foundation model that separates general behavioral priors from dynamics-specific execution, turning interaction experience into environment-adaptive whole-body control.",
+      "llm_tldr_cn": "人形行为基础模型虽能通过大规模动作模仿与并行强化学习获得多样技能，但在不同物理条件下难以精确执行。ECHO提出上下文行为基础模型，先用混合退火采样建立行为先验，再借助上下文表示把交互经验转化为环境特定的控制策略，从而将通用行为能力和动力学特定执行解耦。该框架提升了人形全身控制在不同物理条件下的精度与适应性。",
+      "llm_tldr": "人形行为基础模型虽能通过大规模动作模仿与并行强化学习获得多样技能，但在不同物理条件下难以精确执行。ECHO提出上下文行为基础模型，先用混合退火采样建立行为先验，再借助上下文表示把交互经验转化为环境特定的控制策略，从而将通用行为能力和动力学特定执行解耦。该框架提升了人形全身控制在不同物理条件下的精度与适应性。",
+      "llm_title_zh": "ECHO：面向人形全身控制的上下文行为基础模型",
+      "llm_motivation_cn": "现有人形行为基础模型技能覆盖面广但执行精度不足，难以适应不同物理条件。",
+      "llm_method_cn": "提出ECHO上下文行为基础模型，用混合退火采样建立行为先验，并学习上下文表示以区分环境动力学。",
+      "llm_result_cn": "该方法把通用行为先验与动力学特定执行解耦，在不同物理条件下实现更精确的全身控制。",
+      "llm_conclusion_cn": "表明将交互经验转化为环境特定控制可提升人形机器人全身行为的执行精度。",
+      "llm_tags": [
+        "query:humanoid-rl"
+      ],
+      "matched_query_tag": "query:humanoid-rl",
+      "matched_query_text": "reinforcement learning methods for controlling embodied agents and humanoid robots",
+      "matched_requirement_id": "req-1",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2611.29277v1",
+      "source": "arxiv",
+      "title": "$ζ_0$: A Framework for World Action Models with Joint Scene and Body Foresight in Humanoid Control",
+      "abstract": "World Action Models anticipate visual outcomes to guide robot actions, yet humanoid interaction also depends on how the robot's body responds. Visual foresight alone can miss body motion, while latent-distance losses do not directly supervise action responses. We present $ζ_0$, a framework that turns vision-language-action policies into World Action Models by foreseeing future visual features and measured joint trajectories in a shared latent representation. During training, a teacher conditioned on recorded futures provides a reference action response, and dual-response transfer trains the causal predictor to match it through the teacher and the executing policy. All components are trained jointly, and deployment uses only causally predicted futures. On seven HumanoidArena tasks, $ζ_0$ built on $Ψ_0$ and GR00T N1.7 reaches 63.6% and 79.5% mean success, 18.8 and 9.0 points above these bases. On six real-world tasks, it reaches 78.3% and 85.0%, gains of 16.7 and 10.0 points. On GR00T, its 79.5% tops all compared seven-task joint policies. Project page: https://chenyizhi123.github.io/zeta0-project/",
+      "authors": [
+        "Yizhi Chen",
+        "Zhanxiang Cao",
+        "Yitong Wang",
+        "Junyu Liu",
+        "Hongchu Zeng",
+        "Xinyi Peng",
+        "Chuxuan Huang",
+        "Yicheng Su",
+        "Zihao Zhou",
+        "Shengcheng Fu",
+        "Haoyang Li",
+        "Liyun Yan",
+        "Tianyue Zhan",
+        "Jianming Ma",
+        "Yang Zhang",
+        "Keqi Zhu",
+        "Xiaxi Si",
+        "Jinming Yao",
+        "Qiao Sun",
+        "Shizeng Zhang",
+        "Jiangwei Zhong",
+        "Yue Gao"
+      ],
+      "primary_category": "cs.RO",
+      "categories": [
+        "cs.RO",
+        "cs.CV",
+        "cs.LG"
+      ],
+      "published": "2026-11-22T06:55:22+00:00",
+      "link": "https://arxiv.org/pdf/2611.29277v1",
+      "tags": [
+        "keyword:humanoid-rl",
+        "query:humanoid-rl"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "world action model foreseeing scene and body motion for humanoid control policies",
+      "llm_evidence_cn": "预测场景与身体运动的世界动作模型用于人形控制",
+      "llm_evidence": "预测场景与身体运动的世界动作模型用于人形控制",
+      "canonical_evidence": "预测场景与身体运动的世界动作模型用于人形控制",
+      "llm_tldr_en": "Zeta0 turns vision-language-action policies into world action models that foresee both future visual features and joint trajectories in a shared latent space for humanoid control.",
+      "llm_tldr_cn": "世界动作模型依靠视觉预测引导机器人动作，但人形交互还依赖身体响应，仅视觉前瞻会忽略身体运动。作者提出ζ0框架，将视觉-语言-动作策略改造为世界动作模型，在共享隐表示中同时预测未来视觉特征与实测关节轨迹，并用教师参考动作响应进行双响应迁移训练。该工作提升了人形控制中对场景与身体演化的联合建模能力。",
+      "llm_tldr": "世界动作模型依靠视觉预测引导机器人动作，但人形交互还依赖身体响应，仅视觉前瞻会忽略身体运动。作者提出ζ0框架，将视觉-语言-动作策略改造为世界动作模型，在共享隐表示中同时预测未来视觉特征与实测关节轨迹，并用教师参考动作响应进行双响应迁移训练。该工作提升了人形控制中对场景与身体演化的联合建模能力。",
+      "llm_title_zh": "ζ0：面向人形控制的场景与身体联合前瞻世界动作模型框架",
+      "llm_motivation_cn": "视觉前瞻无法反映人形机器人的身体响应，隐距离损失也难以监督动作响应。",
+      "llm_method_cn": "提出ζ0，在共享隐表示中联合预测未来视觉特征与关节轨迹，并用教师双响应迁移训练。",
+      "llm_result_cn": "框架实现场景与身体的联合前瞻，训练后可直接部署于人形控制策略。",
+      "llm_conclusion_cn": "表明联合场景与身体前瞻的世界动作模型能更好支撑人形机器人控制。",
+      "llm_tags": [
+        "query:humanoid-rl"
+      ],
+      "matched_query_tag": "query:humanoid-rl",
+      "matched_query_text": "reinforcement learning methods for controlling embodied agents and humanoid robots",
+      "matched_requirement_id": "req-1",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2611.32944v1",
+      "source": "arxiv",
+      "title": "DynaMimic: A Physics-Informed World Model for Humanoid Motion Tracking",
+      "abstract": "Whole-body motion tracking enables humanoid robots to reproduce diverse skills from human demonstrations. Existing model-free reinforcement learning methods either distill motion specialists into a single policy at the cost of performance or train a generalist policy directly using cluster-scale computation. SuperMimic reduces this computational cost through a differentiable world model that implicitly learns the physics shared across motions by predicting the next state from the current state and action. However, this implicit formulation may not fully capture the underlying physical processes. Errors around changes of support can accumulate over imagined rollouts used to train the tracking policy. To address this challenge, we introduce DynaMimic, a differentiable world model that explicitly incorporates shared physics into state prediction. Specifically, its network predicts a contact wrench at each candidate support link and a residual generalized force. DynaMimic then uses these predictions to compute the next state through closed-form Lagrangian forward dynamics. Across 60 full LAFAN1 motions, DynaMimic reduces mean per-joint position error (MPJPE) by 18.6% relative to SuperMimic. For terrain tracking, we give both methods the same local height maps. Relative to terrain-conditioned SuperMimic, DynaMimic reduces MPJPE by 14.9% on A3 Parkour (66.15 to 56.28~mm) and by 10.8% on GRAIL terrain clips (141.88 to 126.57~mm). On a real A3 humanoid, the learned policies can perform diverse skills, such as floor recovery, cartwheel and a box vault.",
+      "authors": [
+        "Chaoyue Xing",
+        "Linyi Huang",
+        "Yiting He",
+        "Yixuan Yin",
+        "Siqi Hou",
+        "Yi Zhang",
+        "Liyuan Pan",
+        "Miaomiao Liu",
+        "Daqi Liu"
+      ],
+      "primary_category": "cs.RO",
+      "categories": [
+        "cs.RO"
+      ],
+      "published": "2026-11-24T16:47:34+00:00",
+      "link": "https://arxiv.org/pdf/2611.32944v1",
+      "tags": [
+        "keyword:humanoid-rl",
+        "query:humanoid-rl"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "Physics-informed differentiable world model to train humanoid whole-body motion tracking policies with reinforcement learning",
+      "llm_evidence_cn": "用物理信息可微世界模型配合强化学习训练人形全身动作跟踪策略",
+      "llm_evidence": "用物理信息可微世界模型配合强化学习训练人形全身动作跟踪策略",
+      "canonical_evidence": "用物理信息可微世界模型配合强化学习训练人形全身动作跟踪策略",
+      "llm_tldr_en": "DynaMimic introduces a physics-informed differentiable world model for humanoid motion tracking, improving rollout fidelity at support transitions and cutting the compute needed to train generalist tracking policies.",
+      "llm_tldr_cn": "人形全身动作跟踪的既有模型无关强化学习方法要么蒸馏专家而损失性能，要么依赖集群级算力。DynaMimic提出物理信息驱动的世界模型，在由当前状态与动作预测下一状态时显式融入跨动作共享的物理过程，缓解支撑切换处误差在想象rollout中的累积。该工作降低了训练通用跟踪策略的计算成本并提升物理一致性。",
+      "llm_tldr": "人形全身动作跟踪的既有模型无关强化学习方法要么蒸馏专家而损失性能，要么依赖集群级算力。DynaMimic提出物理信息驱动的世界模型，在由当前状态与动作预测下一状态时显式融入跨动作共享的物理过程，缓解支撑切换处误差在想象rollout中的累积。该工作降低了训练通用跟踪策略的计算成本并提升物理一致性。",
+      "llm_title_zh": "DynaMimic：面向人形动作跟踪的物理信息世界模型",
+      "llm_motivation_cn": "现有模型无关强化学习蒸馏会损失性能，直接训练通用策略又需集群级算力。",
+      "llm_method_cn": "提出物理信息世界模型DynaMimic，显式建模跨动作共享的物理过程以减少支撑切换误差累积。",
+      "llm_result_cn": "该世界模型降低训练成本并提升想象rollout的物理一致性，改善人形跟踪策略训练。",
+      "llm_conclusion_cn": "表明结构化物理世界模型是提升人形强化学习效率与保真度的有效手段。",
+      "llm_tags": [
+        "query:humanoid-rl"
+      ],
+      "matched_query_tag": "query:humanoid-rl",
+      "matched_query_text": "reinforcement learning methods for controlling embodied agents and humanoid robots",
+      "matched_requirement_id": "req-1",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2611.33828v1",
+      "source": "arxiv",
+      "title": "Learning a Whole-Body Pivot-Walking Gait for Heavy-Box Transport with a Humanoid",
+      "abstract": "Through pivot walking, humans can transport objects that are too heavy to lift. Previous humanoid studies have relied on planned sequences in which object manipulation and stepping are executed separately and the object is brought to rest between successive rotations. However, few studies have developed a single learned controller for humanoid pivot walking. In this paper, we propose a single reinforcement-learning policy that jointly coordinates stepping, balance control, and object manipulation. The policy is trained using rewards that promote alternating pivot motions and a phase reference that progresses according to the displacement of the object. In simulation, we confirmed that the humanoid can pivot a box. For deployment, we fine-tuned the policy into an object-blind version that follows a periodic clock instead of the progress reference. On the real robot, the deployed policy transported the box forward by more than 1 m in all five trials; each trial ended at a base-tilt safety stop. These results demonstrate that coordinated humanoid pivot walking can be learned with reinforcement learning and transferred to a physical humanoid robot without direct object-state sensing.",
+      "authors": [
+        "Rikuto Hidaka",
+        "Tsung-Yuan Chen",
+        "Kento Kawaharazuka"
+      ],
+      "primary_category": "cs.RO",
+      "categories": [
+        "cs.RO",
+        "cs.LG"
+      ],
+      "published": "2026-11-25T05:59:20+00:00",
+      "link": "https://arxiv.org/pdf/2611.33828v1",
+      "tags": [
+        "keyword:humanoid-rl",
+        "query:humanoid-rl"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "Single RL policy coordinating humanoid stepping, balance and object manipulation for heavy box transport",
+      "llm_evidence_cn": "单一强化学习策略协同人形机器人迈步、平衡与物体操作以搬运重箱",
+      "llm_evidence": "单一强化学习策略协同人形机器人迈步、平衡与物体操作以搬运重箱",
+      "canonical_evidence": "单一强化学习策略协同人形机器人迈步、平衡与物体操作以搬运重箱",
+      "llm_tldr_en": "A single reinforcement-learning policy jointly coordinates stepping, balance and object manipulation so a humanoid can pivot-walk a heavy box, trained with alternating-pivot rewards and object-displacement phase reference, then fine-tuned for deployment.",
+      "llm_tldr_cn": "人类可用支点式行走搬运过重而无法抬起的物体，但此前人形研究多依赖操作与迈步分离的规划序列，缺少统一的学习控制器。本文提出单一强化学习策略，联合协调迈步、平衡控制与物体操作，并用鼓励交替支点运动的奖励和随物体位移推进的相位参考进行训练。仿真中人形机器人成功实现转动箱子搬运，并通过微调部署到真实平台。该工作展示了强化学习在全身接触式物体操作中的潜力。",
+      "llm_tldr": "人类可用支点式行走搬运过重而无法抬起的物体，但此前人形研究多依赖操作与迈步分离的规划序列，缺少统一的学习控制器。本文提出单一强化学习策略，联合协调迈步、平衡控制与物体操作，并用鼓励交替支点运动的奖励和随物体位移推进的相位参考进行训练。仿真中人形机器人成功实现转动箱子搬运，并通过微调部署到真实平台。该工作展示了强化学习在全身接触式物体操作中的潜力。",
+      "llm_title_zh": "学习人形机器人搬运重箱的全身支点行走步态",
+      "llm_motivation_cn": "现有方法将物体操作与迈步分开规划，缺少统一的人形支点行走学习控制器。",
+      "llm_method_cn": "提出单一强化学习策略，联合协调迈步、平衡与物体操作，采用交替支点奖励和物体位移相位参考。",
+      "llm_result_cn": "仿真中人形机器人成功通过支点行走搬运箱子，并微调用于真实部署。",
+      "llm_conclusion_cn": "表明强化学习可统一解决人形机器人全身接触式重物搬运问题。",
+      "llm_tags": [
+        "query:humanoid-rl"
+      ],
+      "matched_query_tag": "query:humanoid-rl",
+      "matched_query_text": "humanoid robots interacting with objects through whole-body control and manipulation",
+      "matched_requirement_id": "req-2",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2611.27645v1",
+      "source": "arxiv",
+      "title": "Efficient VLA Reinforcement Learning via Subchunk Rollouts in Latent World Models",
+      "abstract": "Model-based reinforcement learning (MBRL) can improve pretrained vision-language-action (VLA) policies through imagined experiences. However, existing VLA-MBRL methods primarily rely on large-scale image or video generation world models, incurring large computational overhead. Latent world models offer a more efficient alternative but face two challenges: compounding errors during recursive prediction and incompatibility with VLAs' visual input interfaces. In this work, we propose LS-MBPO, a lightweight residual MBRL framework that leverages latent world models to improve upon pretrained VLAs. LS-MBPO introduces two key techniques: (1) Hierarchical Forcing, which combines dense causal supervision with autoregressive feedback to mitigate compounding prediction errors; and (2) Latent Subchunk Rollouts, which leverage action chunks from a frozen VLA policy and a latent residual policy for successive subchunk refinement, bridging the gap between latent imagination and VLA policy execution. We further introduce a Progress-Conditioned Branch-Start Curriculum that progressively shifts rollout starting points from later to earlier task stages, enabling effective policy learning from short imagined rollouts. Extensive experiments on LIBERO, RoboTwin, and a real-world ALOHA robot show that LS-MBPO achieves superior task performance and training efficiency compared to existing methods.",
+      "authors": [
+        "Nan Tang",
+        "Han-Tao Zhang",
+        "Jing-Cheng Pang",
+        "Hao-Nan Wang",
+        "Hao-Xiang Ren",
+        "Yi-Fei Sheng",
+        "Jun-Yin Ye",
+        "Tian Xu",
+        "Fan-Ming Luo",
+        "Hao-Xin Lin",
+        "Yang Yu"
+      ],
+      "primary_category": "cs.LG",
+      "categories": [
+        "cs.LG"
+      ],
+      "published": "2026-11-20T14:09:06+00:00",
+      "link": "https://arxiv.org/pdf/2611.27645v1",
+      "tags": [
+        "keyword:humanoid-rl",
+        "query:humanoid-rl"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "Latent world model model-based RL improving VLA policies with subchunk rollouts",
+      "llm_evidence_cn": "利用潜空间世界模型与子块推演提升VLA策略的基于模型强化学习",
+      "llm_evidence": "利用潜空间世界模型与子块推演提升VLA策略的基于模型强化学习",
+      "canonical_evidence": "利用潜空间世界模型与子块推演提升VLA策略的基于模型强化学习",
+      "llm_tldr_en": "LS-MBPO is a lightweight residual model-based RL framework that improves pretrained VLA policies using latent world models, with Hierarchical Forcing to curb compounding errors and subchunk rollouts for efficiency.",
+      "llm_tldr_cn": "现有VLA模型强化学习多依赖大规模图像或视频生成世界模型，计算开销巨大；潜空间世界模型虽更高效，却受递归预测误差累积和与VLA视觉接口不兼容的限制。作者提出轻量级残差基于模型强化学习框架LS-MBPO，引入分层强制监督缓解误差累积，并采用子块推演提升效率。实验表明该方法能在较低计算成本下改进预训练VLA策略。该工作为机器人强化学习中高效利用世界模型提供了方案。",
+      "llm_tldr": "现有VLA模型强化学习多依赖大规模图像或视频生成世界模型，计算开销巨大；潜空间世界模型虽更高效，却受递归预测误差累积和与VLA视觉接口不兼容的限制。作者提出轻量级残差基于模型强化学习框架LS-MBPO，引入分层强制监督缓解误差累积，并采用子块推演提升效率。实验表明该方法能在较低计算成本下改进预训练VLA策略。该工作为机器人强化学习中高效利用世界模型提供了方案。",
+      "llm_title_zh": "在潜空间世界模型中通过子块推演实现高效的VLA强化学习",
+      "llm_motivation_cn": "VLA的基于模型强化学习依赖大规模生成式世界模型，计算开销大，潜空间模型又受误差累积与接口不兼容限制。",
+      "llm_method_cn": "提出轻量残差框架LS-MBPO，用分层强制缓解复合误差，并以子块推演提升效率。",
+      "llm_result_cn": "在较低计算成本下有效改进预训练VLA策略的表现。",
+      "llm_conclusion_cn": "为机器人强化学习中高效利用潜空间世界模型提供了可行路径。",
+      "llm_tags": [
+        "query:humanoid-rl"
+      ],
+      "matched_query_tag": "query:humanoid-rl",
+      "matched_query_text": "Find methods that use structured world models to improve sample efficiency in robotic reinforcement learning.",
+      "matched_requirement_id": "req-8",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2611.26054v1",
+      "source": "arxiv",
+      "title": "Reference-Free Humanoid Skateboarding via Termination-Shaped Reinforcement Learning",
+      "abstract": "Humanoid locomotion research has advanced rapidly on walking and running, but \\emph {object-mediated} locomotion, in which a robot must coordinate its body with a passive external object, remains difficult. One challenging task is skateboarding, which requires simultaneous interaction with the ground and a passive but movable platform to achieve forward motion. Current methods for tackling skateboarding with humanoid robots either require human demonstrations or utilise analytic steering models that require system identification. In this paper, we introduce a deep reinforcement learning framework that does not rely on prior data such as demonstrations and enables robots such as the K1 humanoid to learn to skateboard using model-free learning. The method combines task rewards with exploit-blocking terminations. We introduce a number of constraints restricting behaviours such as losing the planted board foot, standing with both feet on the board, excessive twisting, separation from the board, and unstable board motion. Their changing prevalence during training produces an implicit progression from stance control towards sustained robot--board locomotion.",
+      "authors": [
+        "Ganeshvar Soenessardien",
+        "Michael Przystupa",
+        "Kevin Sebastian Luck"
+      ],
+      "primary_category": "cs.RO",
+      "categories": [
+        "cs.RO",
+        "cs.LG"
+      ],
+      "published": "2026-11-19T12:59:43+00:00",
+      "link": "https://arxiv.org/pdf/2611.26054v1",
+      "tags": [
+        "keyword:humanoid-rl",
+        "query:humanoid-rl"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "humanoid learning to coordinate body with a movable object via reinforcement learning",
+      "llm_evidence_cn": "人形机器人通过强化学习与可移动物体协调交互",
+      "llm_evidence": "人形机器人通过强化学习与可移动物体协调交互",
+      "canonical_evidence": "人形机器人通过强化学习与可移动物体协调交互",
+      "llm_tldr_en": "A reference-free deep reinforcement learning framework with termination shaping lets a K1 humanoid learn skateboarding by coordinating its body with a passive movable platform.",
+      "llm_tldr_cn": "针对人形机器人物体介导运动（如滑板）难以学习、现有方法依赖人类示范或需系统辨识的解析转向模型的问题，本文提出无参考的深度强化学习框架，利用终止条件塑形奖励，使K1人形机器人仅通过模型无关学习即可掌握滑板前进。实验表明机器人能稳定地与被动可移动平台协调实现运动，为无需示范的人形-物体交互技能学习提供了可行途径。",
+      "llm_tldr": "针对人形机器人物体介导运动（如滑板）难以学习、现有方法依赖人类示范或需系统辨识的解析转向模型的问题，本文提出无参考的深度强化学习框架，利用终止条件塑形奖励，使K1人形机器人仅通过模型无关学习即可掌握滑板前进。实验表明机器人能稳定地与被动可移动平台协调实现运动，为无需示范的人形-物体交互技能学习提供了可行途径。",
+      "llm_title_zh": "基于终止塑形强化学习的无参考人形机器人滑板运动",
+      "llm_motivation_cn": "人形物体介导运动如滑板需同时协调地面与被动平台，现有方法依赖示范或需系统辨识。",
+      "llm_method_cn": "提出无参考深度强化学习框架，通过终止条件塑形奖励进行模型无关学习。",
+      "llm_result_cn": "K1人形机器人无需人类示范即学会与可移动平台协调完成滑板前进。",
+      "llm_conclusion_cn": "终止塑形强化学习为无示范的人形-物体交互技能获取提供了可行方案。",
+      "llm_tags": [
+        "query:humanoid-rl"
+      ],
+      "matched_query_tag": "query:humanoid-rl",
+      "matched_query_text": "humanoid robots interacting with objects through whole-body control and manipulation",
+      "matched_requirement_id": "req-2",
+      "selection_source": "carryover_cache",
+      "paper_id": "2611.26054v1"
+    }
+  ],
+  "quick_skim": [
+    {
+      "id": "2611.29195v1",
+      "source": "arxiv",
+      "title": "FunGrasp-Zero: Field-Conditioned Graph Attention Policy for Zero-Shot Cross-Embodiment Dexterous Functional Grasping",
+      "abstract": "Dexterous functional grasping is critical for robotic tool use, yet current dexterous hands exhibit substantial morphological diversity. This hardware heterogeneity makes cross-embodiment functional grasping a fundamental but largely unexplored problem. Existing functional grasping methods use retargeted hand poses as guidance, tying task representation to a specific embodiment and failing to explicitly capture object-centric functional contact intent, limiting generalization across hands. To address this, we propose FunGrasp-Zero, a reinforcement learning framework for zero-shot cross-embodiment functional grasping. Instead of relying on embodiment-specific joint configuration, FunGrasp-Zero captures functional intent via an object-centric, cross-embodiment-consistent contact map, adapted to heterogeneous hands through morphological mapping. We construct a hand-object potential field from mapped contact regions, yielding attractive and repulsive guidance vectors. A Field-Conditioned Graph Attention Network (FC-GAT) leverages these vectors to coordinate multi-finger motion across hands, while a potential field reward guides fingers toward target regions and penalizes non-target collisions to enforce functional alignment and stability. We further establish X-FunBench for cross-embodiment functional grasping, evaluating both physical grasp success and functional intent preservation across hands. Evaluated on X-FunBench, our unified policy, co-trained on four embodiments, achieves 86% average grasp success rate across five unseen hands on novel objects. Deployed on four unseen physical hands (Leap, Inspire, Sharpa, Wuji) for novel object grasping, the policy achieves 80% average success rate without fine-tuning. To our knowledge, FunGrasp-Zero is the first RL-based framework to achieve zero-shot cross-embodiment functional grasping across unseen hands in both simulation and the real world.",
+      "authors": [
+        "Yanhan Lin",
+        "Yuliang Wu",
+        "Yihao Guo",
+        "Wei-Jin Huang",
+        "Jianwen Li",
+        "Jiawei Tang",
+        "Xiaolong Huang",
+        "Yuquan Wang",
+        "Ancong Wu",
+        "Wei-Shi Zheng"
+      ],
+      "primary_category": "cs.RO",
+      "categories": [
+        "cs.RO"
+      ],
+      "published": "2026-11-22T03:39:52+00:00",
+      "link": "https://arxiv.org/pdf/2611.29195v1",
+      "tags": [
+        "keyword:humanoid-rl",
+        "query:humanoid-rl"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "reinforcement learning framework with object-centric functional contact representation for dexterous grasping",
+      "llm_evidence_cn": "以物体为中心功能接触表示的强化学习灵巧抓取框架",
+      "llm_evidence": "以物体为中心功能接触表示的强化学习灵巧抓取框架",
+      "canonical_evidence": "以物体为中心功能接触表示的强化学习灵巧抓取框架",
+      "llm_tldr_en": "FunGrasp-Zero is a reinforcement learning framework that captures object-centric functional contact intent via a field-conditioned graph attention policy, enabling zero-shot cross-embodiment dexterous functional grasping.",
+      "llm_tldr_cn": "现有灵巧功能抓取方法依赖重定向手部姿态，任务表示绑定特定本体，难以跨手泛化。作者提出FunGrasp-Zero，用场条件图注意力策略以物体为中心编码功能接触意图，并以强化学习训练。该方法实现零样本跨本体的灵巧功能抓取，为结构化表示与强化学习结合的操作提供范例。",
+      "llm_tldr": "现有灵巧功能抓取方法依赖重定向手部姿态，任务表示绑定特定本体，难以跨手泛化。作者提出FunGrasp-Zero，用场条件图注意力策略以物体为中心编码功能接触意图，并以强化学习训练。该方法实现零样本跨本体的灵巧功能抓取，为结构化表示与强化学习结合的操作提供范例。",
+      "llm_title_zh": "FunGrasp-Zero：面向零样本跨本体灵巧功能抓取的场条件图注意力策略",
+      "llm_motivation_cn": "现有功能抓取依赖重定向手部姿态，任务表示绑定本体，难以跨手泛化。",
+      "llm_method_cn": "提出场条件图注意力策略，以物体为中心编码功能接触意图并用强化学习训练。",
+      "llm_result_cn": "实现了零样本跨不同手部形态的灵巧功能抓取。",
+      "llm_conclusion_cn": "该工作将结构化物体中心表示与强化学习结合，提升跨本体泛化。",
+      "llm_tags": [
+        "query:humanoid-rl"
+      ],
+      "matched_query_tag": "query:humanoid-rl",
+      "matched_query_text": "robotic manipulation policies that leverage structured representations and reinforcement learning",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2611.25462v1",
+      "source": "arxiv",
+      "title": "Demonstration-Free Skill Composition for Navigation and Manipulation",
+      "abstract": "Hierarchical reinforcement learning enables sequential tasks to be represented as compositions of separately trained skills. This paper evaluates demonstration-free hierarchical pipelines for MiniGrid navigation and robotic manipulation, comparing their training requirements and task performance with flat reinforcement learning baselines. The evaluation concerns complete pipelines with task-specific observation, reward and control structures. In navigation, two parameterised skills are reused across unseen FourRooms layouts under manually specified high-level plans. In manipulation, reaching, grasp alignment and lifting are trained separately, with downstream skills initialised from states collected during predecessor rollouts. Across unseen navigation layouts, the hierarchical pipeline substantially outperforms the evaluated flat DQN baselines while requiring fewer training interactions. In manipulation, the hierarchical chain requires fewer training steps than flat SAC and exhibits lower observed variation across seeds. The frozen Pick and Lift skills are further reused for stacking by training an additional Place skill.",
+      "authors": [
+        "Madeleine Nouri",
+        "Gelareh Mohammadi",
+        "Francisco Cruz"
+      ],
+      "primary_category": "cs.RO",
+      "categories": [
+        "cs.RO",
+        "cs.AI"
+      ],
+      "published": "2026-11-19T03:47:02+00:00",
+      "link": "https://arxiv.org/pdf/2611.25462v1",
+      "tags": [
+        "keyword:humanoid-rl",
+        "query:humanoid-rl"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "Evaluates demonstration-free hierarchical reinforcement learning pipelines that compose separately trained skills for navigation and robotic manipulation",
+      "llm_evidence_cn": "评估无示教分层强化学习流水线，将分别训练的技能组合用于导航与机器人操作",
+      "llm_evidence": "评估无示教分层强化学习流水线，将分别训练的技能组合用于导航与机器人操作",
+      "canonical_evidence": "评估无示教分层强化学习流水线，将分别训练的技能组合用于导航与机器人操作",
+      "llm_tldr_en": "This paper evaluates demonstration-free hierarchical RL pipelines for MiniGrid navigation and robotic manipulation, comparing their training requirements and task performance against flat RL baselines.",
+      "llm_tldr_cn": "分层强化学习可以把长序列任务表示为独立训练技能的组合，但无示教流水线的训练代价与性能仍缺乏系统评估。论文在MiniGrid导航中复用两个参数化技能，并在操作任务中分别训练到达、抓取对齐与抬升技能，下游技能由前序rollout状态初始化。作者与扁平强化学习基线对比，分析了完整流水线在观测、奖励与控制结构上的差异，揭示技能组合在未见布局与操作任务上的可复用性与训练需求。",
+      "llm_tldr": "分层强化学习可以把长序列任务表示为独立训练技能的组合，但无示教流水线的训练代价与性能仍缺乏系统评估。论文在MiniGrid导航中复用两个参数化技能，并在操作任务中分别训练到达、抓取对齐与抬升技能，下游技能由前序rollout状态初始化。作者与扁平强化学习基线对比，分析了完整流水线在观测、奖励与控制结构上的差异，揭示技能组合在未见布局与操作任务上的可复用性与训练需求。",
+      "llm_title_zh": "面向导航与操作的无示教技能组合",
+      "llm_motivation_cn": "分层强化学习可将长序列任务分解为独立技能，但无示教流水线的训练需求与性能缺乏系统评估。",
+      "llm_method_cn": "论文构建无示教分层强化学习流水线，在MiniGrid导航与机械臂到达、抓取对齐和抬升任务中分别训练并复用技能。",
+      "llm_result_cn": "与扁平强化学习基线对比，分层流水线在未见导航布局与操作任务上呈现不同的训练需求与性能权衡。",
+      "llm_conclusion_cn": "说明技能组合式分层强化学习可作为机器人长序列操作与导航的可复用构建方案。",
+      "llm_tags": [
+        "query:humanoid-rl"
+      ],
+      "matched_query_tag": "query:humanoid-rl",
+      "matched_query_text": "reinforcement learning methods for controlling embodied agents and humanoid robots",
+      "matched_requirement_id": "req-1",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    },
+    {
+      "id": "2611.25667v1",
+      "source": "arxiv",
+      "title": "CauSyncVLA: Causal Latent World Modeling for Asynchronous Robot Control",
+      "abstract": "Vision-Language-Action (VLA) policies must react while visual inference is still running. Overlapping computation and execution reduces waiting, yet leaves perceptual memory stale and successive action chunks disconnected. We present CauSyncVLA, an asynchronous dual-system controller that aligns perceptual-memory prediction and trajectory correction with actual robot execution. Rather than forecasting pixels or physical states, a Causal Latent World Model predicts current perceptual memory from delayed visual anchors and executed state-action history, supervised through action-sensitive distillation to retain the frozen expert's control response. Conditioned on this updated memory, Predictive Flow Warm-Starting (PFWS) aligns the unexecuted action horizon for single-step flow correction without extra training. On LIBERO-10, CauSyncVLA reaches 93.8% success at 5.04$\\times$ inference throughput, improving closed-loop robustness and robot motion smoothness.",
+      "authors": [
+        "Xu Pan",
+        "Chubin Zhang",
+        "Xingrui Yu",
+        "Runmin Lan",
+        "Zihao Wang",
+        "Wenkai Guo",
+        "Bofang Jia",
+        "Bo An",
+        "Ziwei Wang"
+      ],
+      "primary_category": "cs.RO",
+      "categories": [
+        "cs.RO",
+        "cs.CV"
+      ],
+      "published": "2026-11-19T07:45:18+00:00",
+      "link": "https://arxiv.org/pdf/2611.25667v1",
+      "tags": [
+        "keyword:humanoid-rl",
+        "query:humanoid-rl"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "Causal latent world model predicts perceptual memory from delayed visual anchors and executed state-action history to support asynchronous robot control",
+      "llm_evidence_cn": "因果潜空间世界模型从延迟视觉锚点与已执行状态动作历史预测感知记忆，支撑异步机器人控制",
+      "llm_evidence": "因果潜空间世界模型从延迟视觉锚点与已执行状态动作历史预测感知记忆，支撑异步机器人控制",
+      "canonical_evidence": "因果潜空间世界模型从延迟视觉锚点与已执行状态动作历史预测感知记忆，支撑异步机器人控制",
+      "llm_tldr_en": "CauSyncVLA uses a causal latent world model to predict perceptual memory from delayed visual anchors and executed history, enabling asynchronous VLA control with aligned action chunks.",
+      "llm_tldr_cn": "视觉语言动作策略需在视觉推理尚未完成时做出反应，重叠计算虽减少等待却导致感知记忆陈旧与动作块断裂。作者提出CauSyncVLA异步双系统控制器，用因果潜空间世界模型从延迟视觉锚点与执行历史预测当前感知记忆，并通过动作敏感蒸馏保留专家控制响应。结合预测流热启动对齐未执行动作段，使感知记忆预测与轨迹修正同步于真实执行，表明潜空间世界建模可支撑实时异步控制而无需预测像素或物理状态。",
+      "llm_tldr": "视觉语言动作策略需在视觉推理尚未完成时做出反应，重叠计算虽减少等待却导致感知记忆陈旧与动作块断裂。作者提出CauSyncVLA异步双系统控制器，用因果潜空间世界模型从延迟视觉锚点与执行历史预测当前感知记忆，并通过动作敏感蒸馏保留专家控制响应。结合预测流热启动对齐未执行动作段，使感知记忆预测与轨迹修正同步于真实执行，表明潜空间世界建模可支撑实时异步控制而无需预测像素或物理状态。",
+      "llm_title_zh": "CauSyncVLA：面向异步机器人控制的因果潜空间世界建模",
+      "llm_motivation_cn": "视觉语言动作策略需在视觉推理尚未完成时反应，重叠计算会造成感知记忆陈旧与动作块断裂。",
+      "llm_method_cn": "提出CauSyncVLA异步双系统控制器，用因果潜空间世界模型从延迟视觉锚点与执行历史预测当前感知记忆。",
+      "llm_result_cn": "结合预测流热启动对齐未执行动作段，使感知记忆预测与轨迹修正同步于实际执行。",
+      "llm_conclusion_cn": "表明潜空间世界建模可支撑实时异步机器人控制而无需预测像素或物理状态。",
+      "llm_tags": [
+        "query:humanoid-rl"
+      ],
+      "matched_query_tag": "query:humanoid-rl",
+      "matched_query_text": "representation learning for control, robotics, and embodied decision making",
+      "matched_requirement_id": "req-3",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    },
+    {
+      "id": "2611.30516v1",
+      "source": "arxiv",
+      "title": "JEPA-ICL: Progress-Aligned Latent Plans for In-Context Robotic Manipulation",
+      "abstract": "Demonstrations show how a task can be completed, but differences in embodiment, appearance, and execution speed make it difficult to identify the guidance relevant to the robot's current progress. We introduce JEPA-ICL, a vision-language-action framework that couples predictive planning with demonstration learning. The policy learns to plan by predicting ordered future states in JEPA feature space up to subtask completion, capturing what remains to be accomplished. These plans guide action generation and locate relevant stages in demonstrations, whose JEPA-supervised content features provide progress-aligned context. Learning from this context, in turn, updates the shared policy that produces the plans and actions. This coupling connects anticipating the robot's own execution with reusing demonstrated experience. On the Imitator Game, JEPA-ICL achieves 80.0% seen-task success under C15 pretraining, outperforming Zero-WAM by 12.0 percentage points. Without contextual demonstrations, JEPA-ICL outperforms the VLA-JEPA variant without human-video pretraining, improving success rates from 96.1% to 97.6% on LIBERO and from 62.9% to 73.2% on LIBERO-Plus. With demonstration-based training and contextual guidance at inference, LIBERO-Plus success further increases from 73.2% to 75.2%.",
+      "authors": [
+        "Tingjun Dai",
+        "Jianxiang He",
+        "Mingfei Han",
+        "Qihao Yu",
+        "Longtao Jiang",
+        "Changlin Li",
+        "Minghao Jin",
+        "Zhihui Li",
+        "Xiaojun Chang"
+      ],
+      "primary_category": "cs.RO",
+      "categories": [
+        "cs.RO",
+        "cs.AI"
+      ],
+      "published": "2026-11-23T11:32:22+00:00",
+      "link": "https://arxiv.org/pdf/2611.30516v1",
+      "tags": [
+        "keyword:humanoid-rl",
+        "query:humanoid-rl"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "Predicts ordered future states in JEPA latent space to form progress-aligned plans that guide manipulation policies from demonstrations",
+      "llm_evidence_cn": "在JEPA潜空间中预测有序未来状态，形成进度对齐计划以引导示教驱动的操作策略",
+      "llm_evidence": "在JEPA潜空间中预测有序未来状态，形成进度对齐计划以引导示教驱动的操作策略",
+      "canonical_evidence": "在JEPA潜空间中预测有序未来状态，形成进度对齐计划以引导示教驱动的操作策略",
+      "llm_tldr_en": "JEPA-ICL couples predictive planning in JEPA latent space with demonstration learning, aligning latent plans to the robot's current progress so manipulation policies can reuse the relevant stages of demonstrations.",
+      "llm_tldr_cn": "机器人从示教中学习操作时常因形态、外观与执行速度差异而难以判断哪些指导与当前进度相关。JEPA-ICL在JEPA特征空间中预测有序未来状态形成潜空间计划，并据此在示教中定位与进度对齐的阶段作为上下文。计划与动作由同一共享策略生成并相互更新，实现预测规划与示教学习的耦合。这一设计提升了跨形态操作任务中示教信息的可复用性与引导精度。",
+      "llm_tldr": "机器人从示教中学习操作时常因形态、外观与执行速度差异而难以判断哪些指导与当前进度相关。JEPA-ICL在JEPA特征空间中预测有序未来状态形成潜空间计划，并据此在示教中定位与进度对齐的阶段作为上下文。计划与动作由同一共享策略生成并相互更新，实现预测规划与示教学习的耦合。这一设计提升了跨形态操作任务中示教信息的可复用性与引导精度。",
+      "llm_title_zh": "JEPA-ICL：面向上下文机器人操作的过程对齐潜空间规划",
+      "llm_motivation_cn": "示教数据在形态、外观与执行速度上差异显著，难以确定与机器人当前进度真正相关的指导信息。",
+      "llm_method_cn": "提出JEPA-ICL，在JEPA特征空间中预测有序未来状态形成进度对齐的潜空间计划，并用其定位示教中的相关阶段。",
+      "llm_result_cn": "该框架将预测规划与示教学习耦合，使计划与动作共享同一策略并相互更新。",
+      "llm_conclusion_cn": "表明进度对齐的潜空间表示能提升上下文模仿操作中的引导精度与可迁移性。",
+      "llm_tags": [
+        "query:humanoid-rl"
+      ],
+      "matched_query_tag": "query:humanoid-rl",
+      "matched_query_text": "representation learning for control, robotics, and embodied decision making",
+      "matched_requirement_id": "req-3",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2611.26105v1",
+      "source": "arxiv",
+      "title": "PhysVAM: Physics-oriented Future Value Action Model for Dynamic Object Manipulation",
+      "abstract": "Predicting future scene or object states does not necessarily reveal how robot-object interactions will advance or hinder a task. This challenge is particularly pronounced in dynamic robotic manipulation, where objects continue moving during perception and execution. Effective action generation therefore requires not only modeling object dynamics but also anticipating how future interactions will shape task progress. To this end, we propose \\textbf{PhysVAM}, a Physics-oriented Future Value Action Model that represents anticipated interactions through their effects on future task progress. This value-based formulation provides task-directed foresight without reconstructing future visual states. Conditioned on current observations and historical object and robot motion, PhysVAM jointly learns action generation and multi-horizon future-value prediction. The value branch learns horizon-specific latent representations through future task-value prediction from successful and failed trajectories. These future-value representations are integrated into the action policy through gated cross-attention, guiding action generation toward interactions that facilitate task success. Extensive simulation and real-world experiments demonstrate superior task success, with absolute success-rate improvements of 27.0 and 27.5 percentage points over the strongest baselines in simulation and real-world tasks, respectively. Project page: https://metarobo.github.io/physvam.github.io/.",
+      "authors": [
+        "Yuxiang Yang",
+        "Jingbo Zhang",
+        "Jiaru Zhong",
+        "Junliang Chen",
+        "Yirui Zhou",
+        "Guangming Wang",
+        "Haitao Lin",
+        "Huaiyuan Xu",
+        "Yi Wang",
+        "Lap-Pui Chau"
+      ],
+      "primary_category": "cs.RO",
+      "categories": [
+        "cs.RO"
+      ],
+      "published": "2026-11-19T13:36:29+00:00",
+      "link": "https://arxiv.org/pdf/2611.26105v1",
+      "tags": [
+        "keyword:humanoid-rl",
+        "query:humanoid-rl"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "Physics-oriented future value action model that represents anticipated object interactions by their effect on task progress for dynamic manipulation",
+      "llm_evidence_cn": "物理导向的未来价值动作模型，以对任务进展的影响表示预期物体交互，用于动态操作",
+      "llm_evidence": "物理导向的未来价值动作模型，以对任务进展的影响表示预期物体交互，用于动态操作",
+      "canonical_evidence": "物理导向的未来价值动作模型，以对任务进展的影响表示预期物体交互，用于动态操作",
+      "llm_tldr_en": "PhysVAM replaces future-state reconstruction with a physics-oriented future value action model, predicting how object interactions will affect task progress for dynamic robotic manipulation.",
+      "llm_tldr_cn": "动态操作中物体在感知与执行期间持续运动，仅预测未来状态难以判断交互是否推进任务。作者提出PhysVAM，用物理导向的未来价值动作模型将预期交互表示为对任务进展的影响，而非重建未来视觉状态。该价值式公式在无需重建像素的情况下提供任务导向的前瞻，并结合当前观测与历史条件指导动作生成。结果表明以任务进展为中介的结构化价值建模更适合动态物体操作。",
+      "llm_tldr": "动态操作中物体在感知与执行期间持续运动，仅预测未来状态难以判断交互是否推进任务。作者提出PhysVAM，用物理导向的未来价值动作模型将预期交互表示为对任务进展的影响，而非重建未来视觉状态。该价值式公式在无需重建像素的情况下提供任务导向的前瞻，并结合当前观测与历史条件指导动作生成。结果表明以任务进展为中介的结构化价值建模更适合动态物体操作。",
+      "llm_title_zh": "PhysVAM：面向动态物体操作的物理导向未来价值动作模型",
+      "llm_motivation_cn": "动态操作中物体在感知与执行期间持续运动，仅预测未来状态难以判断交互是否推进任务。",
+      "llm_method_cn": "提出PhysVAM，用物理导向的未来价值动作模型将预期交互表示为对任务进展的影响，而非重建未来视觉状态。",
+      "llm_result_cn": "该价值式公式在动态操作中提供任务导向的前瞻，无需重建像素即可指导动作生成。",
+      "llm_conclusion_cn": "表明以任务进展为中介的价值建模是动态物体操作中更有效的结构化表示方式。",
+      "llm_tags": [
+        "query:humanoid-rl"
+      ],
+      "matched_query_tag": "query:humanoid-rl",
+      "matched_query_text": "robotic manipulation policies that leverage structured representations and reinforcement learning",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    },
+    {
+      "id": "2611.29338v1",
+      "source": "arxiv",
+      "title": "A Glimpse of Training VLMs as Foundation Models for Robotic Manipulation",
+      "abstract": "Recently, GPT-6 Astra demonstrates strong generalization in robot control, yet limited disclosure of its training leaves open how such capabilities can be reproduced. We introduce nanoAstra, an approach to training vision-language models (VLMs) for generalizable manipulation that combines semantic action modeling with capability-preserving supervised fine-tuning (CP-SFT). nanoAstra represents robot behavior as semantic steps composed of reusable, parameterized action primitives, guided by explicit progress descriptions. Meanwhile, CP-SFT uses an explicit robot-specific system prompt to constrain manipulation outputs to a structured action space, aiming to focus adaptation on robot-specific contexts and promote specialization while minimizing interference with broader pretrained capabilities. With this formulation, we train nanoAstra on more than 5,000 hours of robot data together with general VQA data. On RoboTwin 2.0's randomized benchmark, nanoAstra-9B achieves a 17.8% zero-shot success rate, substantially outperforming advanced VLA and WAM baselines as well as similarly sized VLMs. With inference faster than the corresponding motion execution on a single H20 GPU, our model supports action-chunk-like streaming execution that overlaps inference with motion, reducing the robot's idle time from 35.0% to 6.9%.",
+      "authors": [
+        "Meng-Hao Guo",
+        "Yi Zhang",
+        "Zhe-Han Mo",
+        "Han-Zheng Wang",
+        "Jia-Jun Wang",
+        "Xin-Sheng Chen",
+        "Jiaxi Song",
+        "Yi-Xuan Deng",
+        "Jia-Ning Li",
+        "Xuanyu Chu",
+        "Hengrui Zhang",
+        "Huan-ang Gao",
+        "Yongming Rao",
+        "Shi-Min Hu"
+      ],
+      "primary_category": "cs.RO",
+      "categories": [
+        "cs.RO"
+      ],
+      "published": "2026-11-22T09:15:32+00:00",
+      "link": "https://arxiv.org/pdf/2611.29338v1",
+      "tags": [
+        "keyword:humanoid-rl",
+        "query:humanoid-rl"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "structured semantic action primitives and constrained action space for manipulation policies",
+      "llm_evidence_cn": "面向操作策略的结构化语义动作原语与受限动作空间",
+      "llm_evidence": "面向操作策略的结构化语义动作原语与受限动作空间",
+      "canonical_evidence": "面向操作策略的结构化语义动作原语与受限动作空间",
+      "llm_tldr_en": "nanoAstra trains VLMs into generalizable manipulation policies by representing behavior as reusable parameterized semantic action primitives plus capability-preserving supervised fine-tuning.",
+      "llm_tldr_cn": "如何复现强通用机器人控制能力仍缺乏公开训练方案。nanoAstra提出面向通用操作的视觉语言模型训练方法，将机器人行为表示为由可复用参数化动作原语构成的语义步骤，并以显式进度描述引导，同时采用能力保持的监督微调，用机器人专用系统提示约束输出到结构化动作空间。实验表明该方法在保持通用能力的同时提升操作专精程度。其贡献在于给出了一条可复现的结构化动作建模训练路线。",
+      "llm_tldr": "如何复现强通用机器人控制能力仍缺乏公开训练方案。nanoAstra提出面向通用操作的视觉语言模型训练方法，将机器人行为表示为由可复用参数化动作原语构成的语义步骤，并以显式进度描述引导，同时采用能力保持的监督微调，用机器人专用系统提示约束输出到结构化动作空间。实验表明该方法在保持通用能力的同时提升操作专精程度。其贡献在于给出了一条可复现的结构化动作建模训练路线。",
+      "llm_title_zh": "训练视觉语言模型作为机器人操作基础模型的一次探索",
+      "llm_motivation_cn": "强通用机器人控制能力缺乏公开可复现的训练方案。",
+      "llm_method_cn": "以语义动作原语表示行为，并结合能力保持监督微调约束结构化动作空间。",
+      "llm_result_cn": "在保持视觉语言模型通用能力的同时提升了机器人操作专精表现。",
+      "llm_conclusion_cn": "结构化语义动作建模是可复现通用操作基础模型的有效路径。",
+      "llm_tags": [
+        "query:humanoid-rl"
+      ],
+      "matched_query_tag": "query:humanoid-rl",
+      "matched_query_text": "robotic manipulation policies that leverage structured representations and reinforcement learning",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    },
+    {
+      "id": "2611.30813v1",
+      "source": "arxiv",
+      "title": "HIVE-Bench: Evaluating Patch-Level Visual Representations for Egocentric Robot Manipulation",
+      "abstract": "Pretrained vision is a common start for robot learning, but most comparisons still score one pooled vector from a third-person image. Bimanual policies instead read dense patch tokens from cameras on the robot. We introduce HIVE-Bench: one shared flow-matching policy reads 20 encoders from seven families on 24 egocentric bimanual tasks, across adaptation, task sharing, and sweeps of data, model size, and layer. Keeping the patches matters. Averaging each view to one token removes most of the success, adaptation helps every pair we test, and one shared policy keeps most of the success of separate policies at a fraction of the updates. The same tokens are then scored with statistics, state and object readouts, published vision scores, and an inverse-dynamics readout. That readout of the commanded motion is one of the strongest measurements available before a policy is trained. Recognition, depth, and correspondence do not transfer reliably. Fine-tuning can improve the action readout even when other measurements move the other way, and no statistic is stable enough to replace a rollout before any deployment.",
+      "authors": [
+        "Qiwei Liang",
+        "Zhengtu Liang",
+        "Minghao Lai",
+        "Yikeng Chen",
+        "Yiming Wang",
+        "Boyang Cai",
+        "Yuetong Fang",
+        "Taowen Wang",
+        "Baiqiao Yin",
+        "Tianxing Chen",
+        "Yue Chen",
+        "Jiaming Liang",
+        "Guangyu Chen",
+        "Shaolong Zhu",
+        "Daolin Ma",
+        "Renjing Xu"
+      ],
+      "primary_category": "cs.RO",
+      "categories": [
+        "cs.RO",
+        "cs.CV"
+      ],
+      "published": "2026-11-23T15:06:14+00:00",
+      "link": "https://arxiv.org/pdf/2611.30813v1",
+      "tags": [
+        "keyword:humanoid-rl",
+        "query:humanoid-rl"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "Benchmark evaluating patch-level visual representations for egocentric bimanual robot manipulation",
+      "llm_evidence_cn": "评测第一视角双臂机器人操作中块级视觉表示的基准",
+      "llm_evidence": "评测第一视角双臂机器人操作中块级视觉表示的基准",
+      "canonical_evidence": "评测第一视角双臂机器人操作中块级视觉表示的基准",
+      "llm_tldr_en": "HIVE-Bench evaluates 20 pretrained vision encoders with one shared flow-matching policy on 24 egocentric bimanual tasks, showing that keeping dense patch tokens, not pooled vectors, is essential for manipulation success.",
+      "llm_tldr_cn": "预训练视觉表征的评测多基于第三人称图像的单一池化向量，而双臂机器人策略实际读取机器人相机上的稠密块级词元，二者存在错配。作者提出HIVE-Bench，用同一流匹配策略在24个第一视角双臂任务上评测7个系列共20个编码器，覆盖适配、任务共享与数据规模等扫描。结果显示保留块级词元显著影响成功率，池化为单向量会大幅损失性能，且共享策略以更少更新接近独立策略表现。该基准为机器人表征学习提供了更贴近实际的评测协议。",
+      "llm_tldr": "预训练视觉表征的评测多基于第三人称图像的单一池化向量，而双臂机器人策略实际读取机器人相机上的稠密块级词元，二者存在错配。作者提出HIVE-Bench，用同一流匹配策略在24个第一视角双臂任务上评测7个系列共20个编码器，覆盖适配、任务共享与数据规模等扫描。结果显示保留块级词元显著影响成功率，池化为单向量会大幅损失性能，且共享策略以更少更新接近独立策略表现。该基准为机器人表征学习提供了更贴近实际的评测协议。",
+      "llm_title_zh": "HIVE-Bench：面向第一视角机器人操作的块级视觉表示评测",
+      "llm_motivation_cn": "现有视觉表征评测使用第三人称池化向量，与机器人策略实际读取的稠密块级词元不符。",
+      "llm_method_cn": "提出HIVE-Bench，用同一流匹配策略在24个第一视角双臂任务上评测20个视觉编码器。",
+      "llm_result_cn": "保留块级词元对成功率至关重要，共享策略以更少更新接近独立策略表现。",
+      "llm_conclusion_cn": "为机器人操作中的视觉表征学习提供了更贴近部署场景的评测基准。",
+      "llm_tags": [
+        "query:humanoid-rl"
+      ],
+      "matched_query_tag": "query:humanoid-rl",
+      "matched_query_text": "representation learning for control, robotics, and embodied decision making",
+      "matched_requirement_id": "req-3",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2611.28551v1",
+      "source": "arxiv",
+      "title": "PhysPPF: Learning Robotic Manipulation with Past, Present, and Future Physical Representations",
+      "abstract": "Vision-language-action (VLA) models have advanced robotic manipulation, yet complex tasks requiring both precise 3D contact and long-horizon coordination remain challenging. Most existing studies enhance spatial perception or temporal reasoning in VLAs separately. Spatial methods primarily inject geometric or affordance priors into current-frame perception without tracking multi-step transitions, while history-aware and world-model VLAs typically capture past context or future dynamics in 2D feature or pixel spaces, either lacking explicit 3D contact cues or incurring high generation overhead. To address this, we propose PhysPPF, a VLA framework that performs unified spatiotemporal modeling in a compact physical token space. Spatially, WWH (What-Where-How) distills pretrained perception teachers exclusively during training into compact token groups capturing what 3D structures occupy the scene, where to interact, and how the gripper should approach, without test-time 3D encoders. Temporally, operating directly in this WWH space without pixel reconstruction, PPF (Past-Present-Future) consolidates executed states into a bounded past physical memory and jointly infers present and future physical tokens via an asymmetric world model. Parallel gated branches then inject these past, present, and future representations into a flow-matching action expert to guide manipulation without cross-temporal interference. Extensive experiments on SimplerEnv, CALVIN, and LIBERO show that PhysPPF consistently outperforms existing spatial, history-aware, and world-model VLAs with modest latency and parameter overhead, improving over the StarVLA baseline by +17.2 points on SimplerEnv, +29.3 points on CALVIN, and +3.5 points on LIBERO.",
+      "authors": [
+        "Junjie Li",
+        "Dawei Yan",
+        "Guoting Wei",
+        "Ruike Song",
+        "Lu Wang",
+        "Qingguo Chen",
+        "Zhenbo Luo",
+        "Haokui Zhang",
+        "Chunhua Shen"
+      ],
+      "primary_category": "cs.RO",
+      "categories": [
+        "cs.RO"
+      ],
+      "published": "2026-11-21T04:18:08+00:00",
+      "link": "https://arxiv.org/pdf/2611.28551v1",
+      "tags": [
+        "keyword:humanoid-rl",
+        "query:humanoid-rl"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "structured physical representations for robot manipulation policies",
+      "llm_evidence_cn": "面向机器人操作策略的结构化物理表征",
+      "llm_evidence": "面向机器人操作策略的结构化物理表征",
+      "canonical_evidence": "面向机器人操作策略的结构化物理表征",
+      "llm_tldr_en": "PhysPPF unifies past, present and future physical representations in a compact token space for vision-language-action manipulation, adding explicit 3D contact cues and long-horizon temporal reasoning without costly generation.",
+      "llm_tldr_cn": "现有视觉-语言-动作模型在需要精确三维接触与长时序协调的复杂操作任务上仍显不足，空间感知与时间推理往往被分开增强，且缺乏显式三维接触线索。作者提出PhysPPF，在紧凑的物理token空间中统一建模过去、现在与未来的物理表征。实验表明该框架在复杂操作任务上提升了接触精度与长时序协调能力，为VLA策略引入结构化时空先验提供了新思路。",
+      "llm_tldr": "现有视觉-语言-动作模型在需要精确三维接触与长时序协调的复杂操作任务上仍显不足，空间感知与时间推理往往被分开增强，且缺乏显式三维接触线索。作者提出PhysPPF，在紧凑的物理token空间中统一建模过去、现在与未来的物理表征。实验表明该框架在复杂操作任务上提升了接触精度与长时序协调能力，为VLA策略引入结构化时空先验提供了新思路。",
+      "llm_title_zh": "PhysPPF：融合过去、现在与未来物理表征的机器人操作学习",
+      "llm_motivation_cn": "现有视觉-语言-动作模型难以兼顾精确三维接触与长时序协调，空间与时间建模往往相互分离。",
+      "llm_method_cn": "提出PhysPPF框架，在紧凑的物理token空间中统一编码过去、现在与未来的物理表征。",
+      "llm_result_cn": "在需要精确接触与长时序协调的复杂操作任务上，该方法提升了操作成功率与鲁棒性。",
+      "llm_conclusion_cn": "表明统一的时空物理表征可为视觉-语言-动作操作策略提供有效的结构化先验。",
+      "llm_tags": [
+        "query:humanoid-rl"
+      ],
+      "matched_query_tag": "query:humanoid-rl",
+      "matched_query_text": "robotic manipulation policies that leverage structured representations and reinforcement learning",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    },
+    {
+      "id": "2611.29339v1",
+      "source": "arxiv",
+      "title": "More Than Picturing the Future: Motion-Oriented Latent Reasoning for Generalizable Robot Manipulation",
+      "abstract": "Latent reasoning lets Vision-Language-Action (VLA) models deliberate at a fraction of the cost of explicit chain-of-thought, increasingly through visual foresight, which we show to be indispensable for predicting actions. Yet this paradigm is inherited from Vision-Language Models, where it serves understanding rather than action: each latent is aligned with an isolated future frame, often enriched with further modalities of that frame. We find that this binds the policy to the appearance of its training scenes, so that it degrades sharply once the scene changes. We argue that visual latents for action should capture not what a future frame looks like, but how the scene evolves toward the goal. We therefore propose Motion-Oriented Latent Reasoning, which redirects visual latents from the whole frame to the interaction that the action must bring about. Semantic latents, following the stages of embodied chain-of-thought, first establish what to accomplish and how. Conditioned on them, motion-oriented latents anticipate each future step from coarse to fine: from the global scene, to the interaction region spanned by the manipulated object and its destination, to the robot state. Relative to the state-of-the-art latent VLA LaST$_0$, our method raises the mean success rate on SimplerEnv-WidowX from 37.5% to 55.2% in distribution and from 22.4% to 30.2% under out-of-distribution shifts, and on an AgileX Piper dual-arm platform from 60.8% to 90.8% in training scenes and from 6.7% to 37.5% under environmental changes.",
+      "authors": [
+        "Xin Zhang",
+        "Yushuo Hou",
+        "Anqi Zhao",
+        "Moyun Liu",
+        "Xingwei Zhao",
+        "Bo Tao",
+        "Jiawei Du",
+        "Joey Tianyi Zhou"
+      ],
+      "primary_category": "cs.RO",
+      "categories": [
+        "cs.RO",
+        "cs.AI",
+        "cs.CV"
+      ],
+      "published": "2026-11-22T09:15:57+00:00",
+      "link": "https://arxiv.org/pdf/2611.29339v1",
+      "tags": [
+        "keyword:humanoid-rl",
+        "query:humanoid-rl"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "motion-oriented latent reasoning representations for generalizable robot manipulation policies",
+      "llm_evidence_cn": "面向可泛化机器人操作的运动导向潜在推理表示",
+      "llm_evidence": "面向可泛化机器人操作的运动导向潜在推理表示",
+      "canonical_evidence": "面向可泛化机器人操作的运动导向潜在推理表示",
+      "llm_tldr_en": "The paper argues visual latents for action should capture how scenes evolve rather than future frame appearance, proposing motion-oriented latent reasoning that improves generalization of VLA manipulation policies across scene changes.",
+      "llm_tldr_cn": "现有视觉-语言-动作模型的潜在推理把潜在表示对齐到孤立未来帧，导致策略绑定训练场景外观，场景一变性能骤降。作者提出面向运动的潜在推理，让潜在表示刻画场景向目标演化的方式而非未来帧长相。实验表明该方法在场景变化下显著提升操作策略的泛化性，为动作导向表示学习提供新视角。",
+      "llm_tldr": "现有视觉-语言-动作模型的潜在推理把潜在表示对齐到孤立未来帧，导致策略绑定训练场景外观，场景一变性能骤降。作者提出面向运动的潜在推理，让潜在表示刻画场景向目标演化的方式而非未来帧长相。实验表明该方法在场景变化下显著提升操作策略的泛化性，为动作导向表示学习提供新视角。",
+      "llm_title_zh": "不止于想象未来：面向可泛化机器人操作的运动导向潜在推理",
+      "llm_motivation_cn": "VLA模型的潜在推理绑定训练场景外观，场景变化时性能明显下降。",
+      "llm_method_cn": "提出面向运动的潜在推理，让潜在表示刻画场景演化方式而非未来帧外观。",
+      "llm_result_cn": "在场景变化条件下操作策略的泛化性能得到显著提升。",
+      "llm_conclusion_cn": "该工作表明动作导向的表示应关注演化过程而非外观，提升泛化性。",
+      "llm_tags": [
+        "query:humanoid-rl"
+      ],
+      "matched_query_tag": "query:humanoid-rl",
+      "matched_query_text": "representation learning for control, robotics, and embodied decision making",
+      "matched_requirement_id": "req-3",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    },
+    {
+      "id": "2611.31782v1",
+      "source": "arxiv",
+      "title": "Many Senses, One World: Learning Hierarchical Multimodal World Representations for Bimanual Dexterous Manipulation",
+      "abstract": "Bimanual dexterous manipulation relies on multimodal inputs that capture visual context and non-visual physical interaction cues for precise and coordinated control. To address the challenge of effectively integrating these modalities for policy learning, we propose HiMoDex, a two-stage framework centered on hierarchical multimodal world-state representations. In Stage 1, we pretrain a hierarchical representation network on the collected dataset of 1.19 million synchronized multimodal time steps. The network integrates visual context with tactile, force-torque, and audio cues into unified world-state embeddings. In Stage 2, we freeze the pretrained network and use its embeddings to condition a shared world-action transformer. The transformer jointly learns action generation and action-conditioned future-state prediction. Experiments across five real-world tasks show that HiMoDex achieves an average success rate of 78.7\\%, representing an absolute improvement of 32.0\\% over the strongest evaluated baseline. Extensive ablations validate the benefits of hierarchical representation learning and two-stage training. Failure analysis helps explain performance differences across variants. Code, data, and demos will be released at https://anonymous.4open.science/w/research-website-BAB4/.",
+      "authors": [
+        "Jin Yang",
+        "Youlin Wang",
+        "Ping Wei"
+      ],
+      "primary_category": "cs.RO",
+      "categories": [
+        "cs.RO"
+      ],
+      "published": "2026-11-24T01:33:23+00:00",
+      "link": "https://arxiv.org/pdf/2611.31782v1",
+      "tags": [
+        "keyword:humanoid-rl",
+        "query:humanoid-rl"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "hierarchical multimodal world-state representations conditioning manipulation policies for bimanual dexterous control",
+      "llm_evidence_cn": "分层多模态世界状态表示驱动双臂灵巧操作策略",
+      "llm_evidence": "分层多模态世界状态表示驱动双臂灵巧操作策略",
+      "canonical_evidence": "分层多模态世界状态表示驱动双臂灵巧操作策略",
+      "llm_tldr_en": "HiMoDex pretrains a hierarchical representation network on 1.19M multimodal timesteps fusing vision, tactile, force-torque and audio, then freezes it to condition a shared world-action model for bimanual dexterous manipulation.",
+      "llm_tldr_cn": "双臂灵巧操作需融合视觉与非视觉物理交互线索，但多模态整合困难。作者提出HiMoDex，先在119万条同步多模态数据上预训练分层表示网络，将视觉、触觉、力矩与音频融合为统一世界状态嵌入，再冻结网络以其嵌入条件化共享世界动作模型。该结构化表示提升了协调控制的精度，为多模态操作策略学习提供范式。",
+      "llm_tldr": "双臂灵巧操作需融合视觉与非视觉物理交互线索，但多模态整合困难。作者提出HiMoDex，先在119万条同步多模态数据上预训练分层表示网络，将视觉、触觉、力矩与音频融合为统一世界状态嵌入，再冻结网络以其嵌入条件化共享世界动作模型。该结构化表示提升了协调控制的精度，为多模态操作策略学习提供范式。",
+      "llm_title_zh": "多感一世界：面向双臂灵巧操作的分层多模态世界表示学习",
+      "llm_motivation_cn": "双臂灵巧操作需要融合视觉与触觉、力矩等非视觉物理线索，整合困难。",
+      "llm_method_cn": "在大规模同步多模态数据上预训练分层表示网络，冻结后用世界状态嵌入条件化策略。",
+      "llm_result_cn": "统一的多模态世界状态嵌入支撑了更精确协调的双臂灵巧操作。",
+      "llm_conclusion_cn": "该工作展示了结构化多模态表示对灵巧操作策略学习的重要价值。",
+      "llm_tags": [
+        "query:humanoid-rl"
+      ],
+      "matched_query_tag": "query:humanoid-rl",
+      "matched_query_text": "robotic manipulation policies that leverage structured representations and reinforcement learning",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2611.28732v1",
+      "source": "arxiv",
+      "title": "Entangle: Scaling Human-Video In-Context World-Action Models across Unseen Tasks and Contexts",
+      "abstract": "In-context learning (ICL) enables foundation models to perform unseen tasks from context without parameter updates. In robotic manipulation, a human video provides the context that specifies how a task should be performed. However, scaling human-video ICL on world-action models (WAMs) faces two challenges: task-level human-robot pairs are not temporally aligned with robot actions, and standard action losses allow policies to rely on initial-scene or task-identity shortcuts rather than tracking the context. We present Entangle, an in-context world-action model that maps a single human video and current robot observations to future visual states and executable actions. To scale temporally aligned training data, we convert recorded robot videos into matched human contexts via video-to-video generation, supplemented by real paired recordings. For model training, we combine variable-length video windows with an intra-task contrastive objective that distinguishes the paired action trajectory from other executions of the same task, preventing task-identity shortcuts. Without task-specific fine-tuning, Entangle improves steadily as aligned training data scales, reaching an average score of 83.5/100 across six unseen tasks on an Astribot S1 robot, and achieves a 69.5% average success rate on seven unseen RoboTwin tasks, outperforming Zero-WAM by 22.6 percentage points. Under Context-OOD, although trained only on scene-aligned pairs, Entangle transfers context-specified behaviors across rearranged layouts and substituted tools.",
+      "authors": [
+        "Chendong Xiang",
+        "Chengwen Zhang",
+        "Ruowen Zhao",
+        "Zeyuan Wang",
+        "Shuhe Huang",
+        "Rongxu Cui",
+        "Min Zhao",
+        "Fan Bao",
+        "Hengkai Tan",
+        "Jun Zhu"
+      ],
+      "primary_category": "cs.RO",
+      "categories": [
+        "cs.RO",
+        "cs.AI"
+      ],
+      "published": "2026-11-21T10:58:36+00:00",
+      "link": "https://arxiv.org/pdf/2611.28732v1",
+      "tags": [
+        "keyword:humanoid-rl",
+        "query:humanoid-rl"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "In-context world-action model imitating manipulation from a single human video",
+      "llm_evidence_cn": "从单个人类视频进行上下文学习的世界-动作操作模仿模型",
+      "llm_evidence": "从单个人类视频进行上下文学习的世界-动作操作模仿模型",
+      "canonical_evidence": "从单个人类视频进行上下文学习的世界-动作操作模仿模型",
+      "llm_tldr_en": "Entangle is an in-context world-action model that maps a single human video plus robot observations to future visual states and actions, with temporally aligned data and anti-shortcut action losses for scaling human-video imitation.",
+      "llm_tldr_cn": "用人类视频作为上下文进行机器人操作模仿学习时，人-机器人片段在时间上不对齐，且动作损失易让策略依赖初始场景或任务身份等捷径。作者提出上下文世界-动作模型Entangle，将单个人类视频与当前机器人观测映射为未来视觉状态与可执行动作，并通过数据转换获得时间对齐的训练数据、设计抑制捷径的损失。实验表明其可泛化到未见任务与上下文。该工作推动了人类视频驱动的可扩展机器人模仿学习。",
+      "llm_tldr": "用人类视频作为上下文进行机器人操作模仿学习时，人-机器人片段在时间上不对齐，且动作损失易让策略依赖初始场景或任务身份等捷径。作者提出上下文世界-动作模型Entangle，将单个人类视频与当前机器人观测映射为未来视觉状态与可执行动作，并通过数据转换获得时间对齐的训练数据、设计抑制捷径的损失。实验表明其可泛化到未见任务与上下文。该工作推动了人类视频驱动的可扩展机器人模仿学习。",
+      "llm_title_zh": "Entangle：跨未见任务与上下文的视频上下文世界-动作模型扩展",
+      "llm_motivation_cn": "人类视频上下文模仿存在人机时间不对齐，且动作损失易使策略依赖场景或任务身份捷径。",
+      "llm_method_cn": "提出上下文世界-动作模型Entangle，将单个人类视频与机器人观测映射为未来视觉状态与动作，并构造时间对齐数据。",
+      "llm_result_cn": "模型可泛化到未见任务与上下文，实现可扩展的人类视频模仿。",
+      "llm_conclusion_cn": "为人类视频驱动的可扩展机器人操作模仿学习提供了新范式。",
+      "llm_tags": [
+        "query:humanoid-rl"
+      ],
+      "matched_query_tag": "query:humanoid-rl",
+      "matched_query_text": "Find work combining object centric representation learning and imitation learning for robot manipulation.",
+      "matched_requirement_id": "req-7",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    }
+  ]
+}
